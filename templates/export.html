@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Export Data</h1>
+<p>Click the button below to export all data to a CSV backup file. A copy will also be saved to the Pi's backup folder.</p>
+<div style="margin-top: 30px;">
+    <a href="/export/download" class="btn btn-success">Download Full Backup CSV</a>
+</div>
+{% if last_backup %}
+<p style="margin-top: 20px;">Last backup: {{ last_backup }}</p>
+{% endif %}
+{% endblock %}
