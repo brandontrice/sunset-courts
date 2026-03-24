@@ -32,7 +32,6 @@ def calendar():
     prev_date = (selected_date - timedelta(days=1)).isoformat()
     next_date = (selected_date + timedelta(days=1)).isoformat()
 
-    # Generate 30-minute time slots from 6:00 AM to 10:00 PM
     time_slots = []
     hour = 6
     minute = 0
@@ -43,29 +42,23 @@ def calendar():
             minute = 0
             hour += 1
 
-    # Query active bookings for selected date
     bookings = Booking.query.filter_by(
         date=selected_date,
         is_cancelled=False
     ).all()
 
-    # Build booking lookup
     booking_map = {}
     booked_cells = set()
     for b in bookings:
         member = Member.query.get(b.member_id)
-        start_hour = b.start_time.hour
-        start_min = b.start_time.minute
-        end_hour = b.end_time.hour
-        end_min = b.end_time.minute
-        start_total = start_hour * 60 + start_min
-        end_total = end_hour * 60 + end_min
+        start_total = b.start_time.hour * 60 + b.start_time.minute
+        end_total = b.end_time.hour * 60 + b.end_time.minute
         duration_slots = (end_total - start_total) // 30
-        slot_key = f'{start_hour:02d}:{start_min:02d}'
+        slot_key = f'{b.start_time.hour:02d}:{b.start_time.minute:02d}'
         booking_map[(b.court_id, slot_key)] = {
             'member_name': f'{member.first_name} {member.last_name}',
             'start': slot_key,
-            'end': f'{end_hour:02d}:{end_min:02d}',
+            'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
             'rowspan': duration_slots,
             'has_guest': b.has_guest
         }
@@ -76,10 +69,8 @@ def calendar():
             booked_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
             current += 30
 
-    # Query court blocks for selected date
     blocks = CourtBlock.query.filter_by(date=selected_date).all()
 
-    # Build block lookup
     block_map = {}
     blocked_cells = set()
     for bl in blocks:
@@ -115,9 +106,86 @@ def calendar():
                            blocked_cells=blocked_cells)
 
 
+@app.route('/blocks/check', methods=['POST'])
+def check_block_conflicts():
+    court_id = int(request.form.get('court_id'))
+    block_date = date.fromisoformat(request.form.get('date'))
+    start_time = datetime.strptime(request.form.get('start_time'), '%H:%M').time()
+    end_time = datetime.strptime(request.form.get('end_time'), '%H:%M').time()
+
+    start_total = start_time.hour * 60 + start_time.minute
+    end_total = end_time.hour * 60 + end_time.minute
+
+    # Find conflicting bookings
+    existing_bookings = Booking.query.filter_by(
+        court_id=court_id,
+        date=block_date,
+        is_cancelled=False
+    ).all()
+
+    conflicts = []
+    for b in existing_bookings:
+        b_start = b.start_time.hour * 60 + b.start_time.minute
+        b_end = b.end_time.hour * 60 + b.end_time.minute
+        if b_start < end_total and b_end > start_total:
+            member = Member.query.get(b.member_id)
+            # Find available courts for this booking's time slot
+            all_courts = Court.query.filter_by(is_active=True).all()
+            available_courts = []
+            for c in all_courts:
+                if c.id == court_id:
+                    continue
+                # Check no booking exists
+                overlap = Booking.query.filter_by(
+                    court_id=c.id,
+                    date=block_date,
+                    is_cancelled=False
+                ).all()
+                court_free = True
+                for ob in overlap:
+                    ob_start = ob.start_time.hour * 60 + ob.start_time.minute
+                    ob_end = ob.end_time.hour * 60 + ob.end_time.minute
+                    if ob_start < b_end and ob_end > b_start:
+                        court_free = False
+                        break
+                # Check no block exists
+                block_overlap = CourtBlock.query.filter_by(
+                    court_id=c.id,
+                    date=block_date
+                ).all()
+                for bl in block_overlap:
+                    bl_start = bl.start_time.hour * 60 + bl.start_time.minute
+                    bl_end = bl.end_time.hour * 60 + bl.end_time.minute
+                    if bl_start < b_end and bl_end > b_start:
+                        court_free = False
+                        break
+                if court_free:
+                    available_courts.append({
+                        'id': c.id,
+                        'court_number': c.court_number
+                    })
+
+            conflicts.append({
+                'booking_id': b.id,
+                'member_name': f'{member.first_name} {member.last_name}',
+                'member_phone': member.phone,
+                'start': f'{b.start_time.hour:02d}:{b.start_time.minute:02d}',
+                'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
+                'available_courts': available_courts
+            })
+
+    return jsonify({
+        'conflicts': conflicts,
+        'court_id': court_id,
+        'date': block_date.isoformat(),
+        'start_time': start_time.strftime('%H:%M'),
+        'end_time': end_time.strftime('%H:%M')
+    })
+
+
 @app.route('/blocks/add', methods=['POST'])
 def add_block():
-    court_id = request.form.get('court_id')
+    court_id = int(request.form.get('court_id'))
     block_date = request.form.get('date')
     start_time_str = request.form.get('start_time')
     end_time_str = request.form.get('end_time')
@@ -129,7 +197,7 @@ def add_block():
     parsed_date = date.fromisoformat(block_date)
 
     block = CourtBlock(
-        court_id=int(court_id),
+        court_id=court_id,
         date=parsed_date,
         start_time=start_time,
         end_time=end_time,
@@ -149,6 +217,16 @@ def remove_block(block_id):
     db.session.delete(block)
     db.session.commit()
     return redirect(url_for('calendar', date=block_date))
+
+
+@app.route('/bookings/move/<int:booking_id>', methods=['POST'])
+def move_booking(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    new_court_id = int(request.form.get('new_court_id'))
+    redirect_date = booking.date.isoformat()
+    booking.court_id = new_court_id
+    db.session.commit()
+    return redirect(url_for('calendar', date=redirect_date))
 
 
 @app.route('/export')
