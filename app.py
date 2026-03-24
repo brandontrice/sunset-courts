@@ -1,8 +1,8 @@
-from flask import Flask, render_template, send_file, redirect, url_for, request
+from flask import Flask, render_template, send_file, redirect, url_for, request, jsonify
 from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, seed_courts, seed_test_data
 import csv
 import os
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sunset_courts.db'
@@ -49,7 +49,7 @@ def calendar():
         is_cancelled=False
     ).all()
 
-    # Build a lookup: {(court_id, 'HH:MM'): booking}
+    # Build booking lookup
     booking_map = {}
     booked_cells = set()
     for b in bookings:
@@ -76,6 +76,32 @@ def calendar():
             booked_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
             current += 30
 
+    # Query court blocks for selected date
+    blocks = CourtBlock.query.filter_by(date=selected_date).all()
+
+    # Build block lookup
+    block_map = {}
+    blocked_cells = set()
+    for bl in blocks:
+        start_total = bl.start_time.hour * 60 + bl.start_time.minute
+        end_total = bl.end_time.hour * 60 + bl.end_time.minute
+        duration_slots = (end_total - start_total) // 30
+        slot_key = f'{bl.start_time.hour:02d}:{bl.start_time.minute:02d}'
+        block_map[(bl.court_id, slot_key)] = {
+            'block_id': bl.id,
+            'block_type': bl.block_type,
+            'reason': bl.reason,
+            'start': slot_key,
+            'end': f'{bl.end_time.hour:02d}:{bl.end_time.minute:02d}',
+            'rowspan': duration_slots
+        }
+        current = start_total
+        while current < end_total:
+            h = current // 60
+            m = current % 60
+            blocked_cells.add((bl.court_id, f'{h:02d}:{m:02d}'))
+            current += 30
+
     return render_template('calendar.html',
                            selected_date=selected_date_str,
                            display_date=display_date,
@@ -84,7 +110,45 @@ def calendar():
                            today=date.today().isoformat(),
                            time_slots=time_slots,
                            booking_map=booking_map,
-                           booked_cells=booked_cells)
+                           booked_cells=booked_cells,
+                           block_map=block_map,
+                           blocked_cells=blocked_cells)
+
+
+@app.route('/blocks/add', methods=['POST'])
+def add_block():
+    court_id = request.form.get('court_id')
+    block_date = request.form.get('date')
+    start_time_str = request.form.get('start_time')
+    end_time_str = request.form.get('end_time')
+    block_type = request.form.get('block_type')
+    reason = request.form.get('reason')
+
+    start_time = datetime.strptime(start_time_str, '%H:%M').time()
+    end_time = datetime.strptime(end_time_str, '%H:%M').time()
+    parsed_date = date.fromisoformat(block_date)
+
+    block = CourtBlock(
+        court_id=int(court_id),
+        date=parsed_date,
+        start_time=start_time,
+        end_time=end_time,
+        block_type=block_type,
+        reason=reason
+    )
+    db.session.add(block)
+    db.session.commit()
+
+    return redirect(url_for('calendar', date=block_date))
+
+
+@app.route('/blocks/remove/<int:block_id>', methods=['POST'])
+def remove_block(block_id):
+    block = CourtBlock.query.get_or_404(block_id)
+    block_date = block.date.isoformat()
+    db.session.delete(block)
+    db.session.commit()
+    return redirect(url_for('calendar', date=block_date))
 
 
 @app.route('/export')
@@ -106,7 +170,6 @@ def export_download():
     with open(filepath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
 
-        # Members section
         writer.writerow(['MEMBERS'])
         writer.writerow(['ID', 'Phone', 'First Name', 'Last Name', 'Email',
                          'Join Date', 'Family Name', 'Is Active', 'Is Banned',
@@ -118,7 +181,6 @@ def export_download():
 
         writer.writerow([])
 
-        # Dues section
         writer.writerow(['DUES'])
         writer.writerow(['ID', 'Member ID', 'Amount', 'Date Paid', 'Notes', 'Status', 'Year'])
         for d in Dues.query.all():
@@ -127,7 +189,6 @@ def export_download():
 
         writer.writerow([])
 
-        # Courts section
         writer.writerow(['COURTS'])
         writer.writerow(['ID', 'Court Number', 'Is Active'])
         for c in Court.query.all():
@@ -135,17 +196,15 @@ def export_download():
 
         writer.writerow([])
 
-        # Court Blocks section
         writer.writerow(['COURT BLOCKS'])
-        writer.writerow(['ID', 'Court ID', 'Start Time', 'End Time',
+        writer.writerow(['ID', 'Court ID', 'Date', 'Start Time', 'End Time',
                          'Reason', 'Block Type', 'Created By'])
         for cb in CourtBlock.query.all():
-            writer.writerow([cb.id, cb.court_id, cb.start_time, cb.end_time,
+            writer.writerow([cb.id, cb.court_id, cb.date, cb.start_time, cb.end_time,
                              cb.reason, cb.block_type, cb.created_by])
 
         writer.writerow([])
 
-        # Bookings section
         writer.writerow(['BOOKINGS'])
         writer.writerow(['ID', 'Court ID', 'Member ID', 'Date', 'Start Time',
                          'End Time', 'Has Guest', 'Is Cancelled', 'Created At'])
@@ -156,7 +215,6 @@ def export_download():
 
         writer.writerow([])
 
-        # Guests section
         writer.writerow(['GUESTS'])
         writer.writerow(['ID', 'Booking ID', 'First Name', 'Last Name',
                          'Phone', 'Booked By Member'])
