@@ -5,14 +5,15 @@
 
 <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
     <a href="/calendar?date={{ prev_date }}" class="btn btn-secondary btn-sm">← Previous</a>
-    <strong>{{ selected_date }}</strong>
+    <strong>{{ display_date }}</strong>
     <a href="/calendar?date={{ next_date }}" class="btn btn-secondary btn-sm">Next →</a>
 
-    <form method="GET" action="/calendar" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-        <label for="date" style="margin: 0;">Jump to:</label>
-        <input type="date" id="date" name="date" value="{{ selected_date }}"
-               style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;">
-        <button type="submit" class="btn btn-primary btn-sm">Go</button>
+    <form method="GET" action="/calendar" id="dateForm" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+        <label for="dateDisplay" style="margin: 0;">Jump to:</label>
+        <input type="text" id="dateDisplay" placeholder="MM-DD-YYYY"
+               style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px;">
+        <input type="hidden" id="date" name="date">
+        <button type="submit" class="btn btn-primary btn-sm" onclick="return formatDate()">Go</button>
     </form>
 
     <a href="/calendar?date={{ today }}" class="btn btn-outline-secondary btn-sm">Today</a>
@@ -56,5 +57,21 @@
         </tbody>
     </table>
 </div>
+
+<script>
+function formatDate() {
+    const input = document.getElementById('dateDisplay').value;
+    const parts = input.split('-');
+    if (parts.length === 3) {
+        const mm = parts[0].padStart(2, '0');
+        const dd = parts[1].padStart(2, '0');
+        const yyyy = parts[2];
+        document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
+        return true;
+    }
+    alert('Please enter a date in MM-DD-YYYY format.');
+    return false;
+}
+</script>
 
 {% endblock %}
