@@ -116,7 +116,7 @@
      background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
     <div style="background:#fff; padding:30px; border-radius:8px; width:400px; max-width:90%;">
         <h4>Add Court Block</h4>
-        <form method="POST" action="/blocks/add">
+        <form id="blockForm">
             <input type="hidden" name="court_id" id="modal_court_id">
             <input type="hidden" name="date" id="modal_date">
 
@@ -151,7 +151,7 @@
 
             <div style="margin-bottom: 12px;">
                 <label>Block Type</label>
-                <select name="block_type" class="form-control">
+                <select name="block_type" id="modal_block_type" class="form-control">
                     <option value="Maintenance">Maintenance</option>
                     <option value="Special Event">Special Event</option>
                 </select>
@@ -159,17 +159,48 @@
 
             <div style="margin-bottom: 20px;">
                 <label>Reason</label>
-                <input type="text" name="reason" class="form-control" placeholder="Brief description">
+                <input type="text" name="reason" id="modal_reason" class="form-control"
+                       placeholder="Brief description">
             </div>
 
             <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button type="button" class="btn btn-secondary"
                         onclick="closeBlockModal()">Cancel</button>
-                <button type="submit" class="btn btn-warning">Save Block</button>
+                <button type="button" class="btn btn-warning"
+                        onclick="checkConflicts()">Save Block</button>
             </div>
         </form>
     </div>
 </div>
+
+<!-- Conflict Modal -->
+<div id="conflictModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+     background:rgba(0,0,0,0.5); z-index:1100; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:30px; border-radius:8px; width:520px; max-width:95%;
+                max-height:85vh; overflow-y:auto;">
+        <h4 style="color:#dc3545;">⚠️ Booking Conflicts Detected</h4>
+        <p>The following bookings conflict with this block. Please move or note each one before proceeding.</p>
+
+        <div id="conflictList"></div>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+            <button type="button" class="btn btn-secondary"
+                    onclick="closeConflictModal()">Cancel</button>
+            <button type="button" class="btn btn-danger"
+                    onclick="saveBlockAnyway()">Save Block Anyway</button>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden form for final block save -->
+<form id="finalBlockForm" method="POST" action="/blocks/add" style="display:none;">
+    <input type="hidden" name="court_id" id="final_court_id">
+    <input type="hidden" name="date" id="final_date">
+    <input type="hidden" name="start_time" id="final_start_time">
+    <input type="hidden" name="end_time" id="final_end_time">
+    <input type="hidden" name="block_type" id="final_block_type">
+    <input type="hidden" name="reason" id="final_reason">
+</form>
 
 <script>
 // Hover show/hide for empty cells
@@ -192,7 +223,6 @@ document.querySelectorAll('.blocked-cell').forEach(cell => {
     });
 });
 
-// Open modal pre-filled with court, slot, date
 function openBlockModal(courtNum, slot, dateStr) {
     document.getElementById('modal_court_id').value = courtNum;
     document.getElementById('modal_date').value = dateStr;
@@ -211,8 +241,7 @@ function openBlockModal(courtNum, slot, dateStr) {
     }
 
     const endSelect = document.getElementById('modal_end_time');
-    const slotIndex = Array.from(startSelect.options)
-        .findIndex(o => o.value === slot);
+    const slotIndex = Array.from(startSelect.options).findIndex(o => o.value === slot);
     endSelect.selectedIndex = Math.min(slotIndex + 2, endSelect.options.length - 1);
 
     document.getElementById('blockModal').style.display = 'flex';
@@ -222,10 +251,98 @@ function closeBlockModal() {
     document.getElementById('blockModal').style.display = 'none';
 }
 
+function closeConflictModal() {
+    document.getElementById('conflictModal').style.display = 'none';
+}
+
+// Check for conflicts before saving block
+function checkConflicts() {
+    const courtId = document.getElementById('modal_court_id').value;
+    const date = document.getElementById('modal_date').value;
+    const startTime = document.getElementById('modal_start_time').value;
+    const endTime = document.getElementById('modal_end_time').value;
+    const blockType = document.getElementById('modal_block_type').value;
+    const reason = document.getElementById('modal_reason').value;
+
+    const formData = new FormData();
+    formData.append('court_id', courtId);
+    formData.append('date', date);
+    formData.append('start_time', startTime);
+    formData.append('end_time', endTime);
+
+    fetch('/blocks/check', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            // Store block data for final save
+            document.getElementById('final_court_id').value = data.court_id;
+            document.getElementById('final_date').value = data.date;
+            document.getElementById('final_start_time').value = data.start_time;
+            document.getElementById('final_end_time').value = data.end_time;
+            document.getElementById('final_block_type').value = blockType;
+            document.getElementById('final_reason').value = reason;
+
+            if (data.conflicts.length === 0) {
+                // No conflicts — save immediately
+                document.getElementById('finalBlockForm').submit();
+            } else {
+                // Show conflict modal
+                closeBlockModal();
+                renderConflicts(data.conflicts);
+                document.getElementById('conflictModal').style.display = 'flex';
+            }
+        });
+}
+
+function renderConflicts(conflicts) {
+    const list = document.getElementById('conflictList');
+    list.innerHTML = '';
+
+    conflicts.forEach(c => {
+        const div = document.createElement('div');
+        div.style.cssText = 'border:1px solid #dee2e6; border-radius:6px; padding:12px; margin-bottom:12px;';
+
+        let courtOptions = '';
+        if (c.available_courts.length > 0) {
+            courtOptions = `
+                <form method="POST" action="/bookings/move/${c.booking_id}" style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                    <select name="new_court_id" class="form-control form-control-sm" style="width:auto;">
+                        ${c.available_courts.map(ct =>
+                            `<option value="${ct.id}">Court ${ct.court_number}</option>`
+                        ).join('')}
+                    </select>
+                    <button type="submit" class="btn btn-success btn-sm">Move Booking</button>
+                </form>`;
+        } else {
+            courtOptions = `
+                <div style="margin-top:8px; padding:8px; background:#fff3cd; border-radius:4px;
+                            border:1px solid #ffc107;">
+                    ⚠️ <strong>No courts available.</strong> Please call this member to arrange an alternative.<br>
+                    📞 <strong>${c.member_phone}</strong>
+                </div>`;
+        }
+
+        div.innerHTML = `
+            <div><strong>${c.member_name}</strong> — ${c.start} to ${c.end}</div>
+            <div style="font-size:0.85em; color:#555;">📞 ${c.member_phone}</div>
+            ${courtOptions}
+        `;
+        list.appendChild(div);
+    });
+}
+
+function saveBlockAnyway() {
+    document.getElementById('finalBlockForm').submit();
+}
+
+// Close modals on background click
 document.getElementById('blockModal').addEventListener('click', function(e) {
     if (e.target === this) closeBlockModal();
 });
+document.getElementById('conflictModal').addEventListener('click', function(e) {
+    if (e.target === this) closeConflictModal();
+});
 
+// Date jump functions
 function syncFromPicker() {
     const picker = document.getElementById('datePicker').value;
     if (picker) {
