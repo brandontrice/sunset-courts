@@ -19,7 +19,7 @@ class Member(db.Model):
     ban_reason = db.Column(db.String(200))
     ban_date = db.Column(db.DateTime)
     ban_lift_date = db.Column(db.DateTime)
-    role = db.Column(db.String(20), default='member')  # 'member', 'volunteer', 'admin'
+    role = db.Column(db.String(20), default='member')
 
     dues = db.relationship('Dues', backref='member', lazy=True)
     bookings = db.relationship('Booking', backref='member', lazy=True)
@@ -41,7 +41,7 @@ class Court(db.Model):
     __tablename__ = 'courts'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    court_number = db.Column(db.Integer, unique=True, nullable=False)  # 1–6
+    court_number = db.Column(db.Integer, unique=True, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
 
     bookings = db.relationship('Booking', backref='court', lazy=True)
@@ -53,10 +53,11 @@ class CourtBlock(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     court_id = db.Column(db.Integer, db.ForeignKey('courts.id'), nullable=False)
-    start_time = db.Column(db.DateTime, nullable=False)
-    end_time = db.Column(db.DateTime, nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
     reason = db.Column(db.String(200))
-    block_type = db.Column(db.String(50))
+    block_type = db.Column(db.String(50))  # 'Maintenance' or 'Special Event'
     created_by = db.Column(db.Integer, db.ForeignKey('members.id'))
 
 
@@ -121,31 +122,22 @@ def seed_test_data():
     if Booking.query.count() == 0:
         today = date.today()
         test_bookings = [
-            # Court 1 — 60 min
             Booking(court_id=1, member_id=1, date=today,
                     start_time=time(9, 0), end_time=time(10, 0), is_cancelled=False),
-            # Court 1 — 90 min
             Booking(court_id=1, member_id=2, date=today,
                     start_time=time(11, 0), end_time=time(12, 30), is_cancelled=False),
-            # Court 2 — 30 min
             Booking(court_id=2, member_id=3, date=today,
                     start_time=time(10, 0), end_time=time(10, 30), is_cancelled=False),
-            # Court 2 — 60 min
             Booking(court_id=2, member_id=4, date=today,
                     start_time=time(13, 0), end_time=time(14, 0), is_cancelled=False),
-            # Court 3 — 60 min
             Booking(court_id=3, member_id=5, date=today,
                     start_time=time(8, 0), end_time=time(9, 0), is_cancelled=False),
-            # Court 3 — 30 min
             Booking(court_id=3, member_id=1, date=today,
                     start_time=time(14, 0), end_time=time(14, 30), is_cancelled=False),
-            # Court 4 — 90 min
             Booking(court_id=4, member_id=2, date=today,
                     start_time=time(9, 0), end_time=time(10, 30), is_cancelled=False),
-            # Court 5 — 60 min
             Booking(court_id=5, member_id=3, date=today,
                     start_time=time(15, 0), end_time=time(16, 0), is_cancelled=False),
-            # Court 6 — 60 min with guest
             Booking(court_id=6, member_id=4, date=today,
                     start_time=time(10, 0), end_time=time(11, 0),
                     has_guest=True, is_cancelled=False),
