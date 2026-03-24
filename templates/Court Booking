@@ -1,0 +1,46 @@
+#
+
+from datetime import datetime
+
+class Event:
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def get_event_from_user():
+        start_str = input("Enter start time (YYYY-MM-DD): ")
+        end_str = input("Enter end time (YYYY-MM-DD): ")
+
+        start = datetime.strptime(start_str, "%Y-%m-%d")
+        end = datetime.strptime(end_str, "%Y-%m-%d")
+
+        return Event(start, end)
+
+    events = []
+
+    new_event = get_event_from_user()
+
+        if can_book(events, new_event):
+            events.append(new_event)
+            print("Booking confirmed")
+        else:
+            print("Time slot unavailable")
+
+    def get_event_from_user():
+        while True:
+            try:
+                start_str = input("Enter start time (YYYY-MM-DD): ")
+                end_str = input("Enter end time (YYYY-MM-DD ): ")
+
+                start = datetime.strptime(start_str, "%Y-%m-%d")
+                end = datetime.strptime(end_str, "%Y-%m-%d")
+
+                if end <= start:
+                    print("End time must be after start time.")
+                    continue
+
+                return Event(start, end)
+
+            except ValueError:
+                print("Invalid format. Please try again.")
+    
