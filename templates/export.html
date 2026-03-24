@@ -7,10 +7,17 @@
     <a href="/export/download" class="btn btn-success">Download Full Backup CSV</a>
 </div>
 
-{% if last_backup %}
-<p style="margin-top: 20px;">Last Backup: <a href="{{ url_for('serve_backup', filename=last_backup) }}">{{ last_backup }}</a></p>
-{% else %}
-<p style="margin-top: 20px;">Last Backup: None</p>
-{% endif %}
+<div style="margin-top: 30px;">
+    {% if backups %}
+        <h4>Saved Backups</h4>
+        <ul>
+            {% for backup in backups %}
+                <li><a href="{{ url_for('serve_backup', filename=backup) }}">{{ backup }}</a></li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No backups yet.</p>
+    {% endif %}
+</div>
 
 {% endblock %}
