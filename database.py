@@ -96,3 +96,60 @@ def seed_courts():
         for i in range(1, 7):
             db.session.add(Court(court_number=i, is_active=True))
         db.session.commit()
+
+
+def seed_test_data():
+    from datetime import date, time
+
+    if Member.query.count() == 0:
+        test_members = [
+            Member(first_name='John', last_name='Smith', phone='5401111111',
+                   email='john@email.com', role='member'),
+            Member(first_name='Jane', last_name='Doe', phone='5402222222',
+                   email='jane@email.com', role='member'),
+            Member(first_name='Bob', last_name='Johnson', phone='5403333333',
+                   email='bob@email.com', role='member'),
+            Member(first_name='Sarah', last_name='Williams', phone='5404444444',
+                   email='sarah@email.com', role='volunteer'),
+            Member(first_name='Mike', last_name='Brown', phone='5405555555',
+                   email='mike@email.com', role='member'),
+        ]
+        for m in test_members:
+            db.session.add(m)
+        db.session.commit()
+
+    if Booking.query.count() == 0:
+        today = date.today()
+        test_bookings = [
+            # Court 1 — 60 min
+            Booking(court_id=1, member_id=1, date=today,
+                    start_time=time(9, 0), end_time=time(10, 0), is_cancelled=False),
+            # Court 1 — 90 min
+            Booking(court_id=1, member_id=2, date=today,
+                    start_time=time(11, 0), end_time=time(12, 30), is_cancelled=False),
+            # Court 2 — 30 min
+            Booking(court_id=2, member_id=3, date=today,
+                    start_time=time(10, 0), end_time=time(10, 30), is_cancelled=False),
+            # Court 2 — 60 min
+            Booking(court_id=2, member_id=4, date=today,
+                    start_time=time(13, 0), end_time=time(14, 0), is_cancelled=False),
+            # Court 3 — 60 min
+            Booking(court_id=3, member_id=5, date=today,
+                    start_time=time(8, 0), end_time=time(9, 0), is_cancelled=False),
+            # Court 3 — 30 min
+            Booking(court_id=3, member_id=1, date=today,
+                    start_time=time(14, 0), end_time=time(14, 30), is_cancelled=False),
+            # Court 4 — 90 min
+            Booking(court_id=4, member_id=2, date=today,
+                    start_time=time(9, 0), end_time=time(10, 30), is_cancelled=False),
+            # Court 5 — 60 min
+            Booking(court_id=5, member_id=3, date=today,
+                    start_time=time(15, 0), end_time=time(16, 0), is_cancelled=False),
+            # Court 6 — 60 min with guest
+            Booking(court_id=6, member_id=4, date=today,
+                    start_time=time(10, 0), end_time=time(11, 0),
+                    has_guest=True, is_cancelled=False),
+        ]
+        for b in test_bookings:
+            db.session.add(b)
+        db.session.commit()
