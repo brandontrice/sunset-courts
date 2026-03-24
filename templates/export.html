@@ -2,10 +2,15 @@
 {% block content %}
 <h1>Export Data</h1>
 <p>Click the button below to export all data to a CSV backup file. A copy will also be saved to the Pi's backup folder.</p>
+
 <div style="margin-top: 30px;">
     <a href="/export/download" class="btn btn-success">Download Full Backup CSV</a>
 </div>
+
 {% if last_backup %}
-<p style="margin-top: 20px;">Last backup: {{ last_backup }}</p>
+<p style="margin-top: 20px;">Last Backup: <a href="{{ url_for('serve_backup', filename=last_backup) }}">{{ last_backup }}</a></p>
+{% else %}
+<p style="margin-top: 20px;">Last Backup: None</p>
 {% endif %}
+
 {% endblock %}
