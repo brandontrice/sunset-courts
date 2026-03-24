@@ -39,7 +39,30 @@
                     <td style="font-size: 0.85em; white-space: nowrap; vertical-align: middle;">{{ slot }}</td>
                     {% for i in range(1, 7) %}
                         {% set key = (i, slot) %}
-                        {% if key in booking_map %}
+                        {% if key in block_map %}
+                            {% set block = block_map[key] %}
+                            <td rowspan="{{ block.rowspan }}"
+                                style="background-color: #f8d7da; vertical-align: middle;
+                                       font-size: 0.85em; padding: 4px; position: relative;"
+                                class="blocked-cell"
+                                data-block-id="{{ block.block_id }}">
+                                <strong>{{ block.block_type }}</strong><br>
+                                {{ block.start }} – {{ block.end }}<br>
+                                <span style="font-size: 0.75em; color: #555;">{{ block.reason }}</span>
+                                <div class="block-hover-btn" style="display:none; margin-top: 4px;">
+                                    <form method="POST" action="/blocks/remove/{{ block.block_id }}"
+                                          style="margin:0;"
+                                          onsubmit="return confirm('Remove this block?')">
+                                        <button type="submit" class="btn btn-danger btn-sm"
+                                                style="font-size: 0.75em; padding: 2px 6px;">
+                                            Remove Block
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        {% elif key in blocked_cells %}
+                            {# Covered by block rowspan — skip #}
+                        {% elif key in booking_map %}
                             {% set booking = booking_map[key] %}
                             <td rowspan="{{ booking.rowspan }}"
                                 style="background-color: #d4edda; vertical-align: middle;
@@ -51,9 +74,21 @@
                                 {% endif %}
                             </td>
                         {% elif key in booked_cells %}
-                            {# This cell is covered by a rowspan above — skip it #}
+                            {# Covered by booking rowspan — skip #}
                         {% else %}
-                            <td style="height: 40px; background-color: #f9f9f9;"></td>
+                            <td style="height: 40px; background-color: #f9f9f9; position: relative;"
+                                class="empty-cell"
+                                data-court="{{ i }}"
+                                data-slot="{{ slot }}"
+                                data-date="{{ selected_date }}">
+                                <div class="add-block-btn" style="display:none;">
+                                    <button type="button" class="btn btn-warning btn-sm"
+                                            style="font-size: 0.75em; padding: 2px 6px;"
+                                            onclick="openBlockModal({{ i }}, '{{ slot }}', '{{ selected_date }}')">
+                                        + Add Block
+                                    </button>
+                                </div>
+                            </td>
                         {% endif %}
                     {% endfor %}
                 </tr>
@@ -62,8 +97,126 @@
     </table>
 </div>
 
+<!-- Add Block Modal -->
+<div id="blockModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+     background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:30px; border-radius:8px; width:400px; max-width:90%;">
+        <h4>Add Court Block</h4>
+        <form method="POST" action="/blocks/add">
+            <input type="hidden" name="court_id" id="modal_court_id">
+            <input type="hidden" name="date" id="modal_date">
+
+            <div style="margin-bottom: 12px;">
+                <label>Court</label>
+                <input type="text" id="modal_court_display" class="form-control" readonly>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label>Date</label>
+                <input type="text" id="modal_date_display" class="form-control" readonly>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label>Start Time</label>
+                <select name="start_time" id="modal_start_time" class="form-control">
+                    {% for slot in time_slots %}
+                        <option value="{{ slot }}">{{ slot }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label>End Time</label>
+                <select name="end_time" id="modal_end_time" class="form-control">
+                    {% for slot in time_slots %}
+                        <option value="{{ slot }}">{{ slot }}</option>
+                    {% endfor %}
+                    <option value="22:00">22:00</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label>Block Type</label>
+                <select name="block_type" class="form-control">
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Special Event">Special Event</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label>Reason</label>
+                <input type="text" name="reason" class="form-control" placeholder="Brief description">
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary"
+                        onclick="closeBlockModal()">Cancel</button>
+                <button type="submit" class="btn btn-warning">Save Block</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-// Sync from calendar picker to text box
+// Hover show/hide for empty cells
+document.querySelectorAll('.empty-cell').forEach(cell => {
+    cell.addEventListener('mouseenter', () => {
+        cell.querySelector('.add-block-btn').style.display = 'block';
+    });
+    cell.addEventListener('mouseleave', () => {
+        cell.querySelector('.add-block-btn').style.display = 'none';
+    });
+});
+
+// Hover show/hide for blocked cells
+document.querySelectorAll('.blocked-cell').forEach(cell => {
+    cell.addEventListener('mouseenter', () => {
+        cell.querySelector('.block-hover-btn').style.display = 'block';
+    });
+    cell.addEventListener('mouseleave', () => {
+        cell.querySelector('.block-hover-btn').style.display = 'none';
+    });
+});
+
+// Open modal pre-filled with court, slot, date
+function openBlockModal(courtNum, slot, dateStr) {
+    document.getElementById('modal_court_id').value = courtNum;
+    document.getElementById('modal_date').value = dateStr;
+    document.getElementById('modal_court_display').value = 'Court ' + courtNum;
+
+    // Format date for display MM-DD-YYYY
+    const parts = dateStr.split('-');
+    document.getElementById('modal_date_display').value =
+        parts[1] + '-' + parts[2] + '-' + parts[0];
+
+    // Pre-select start time
+    const startSelect = document.getElementById('modal_start_time');
+    for (let i = 0; i < startSelect.options.length; i++) {
+        if (startSelect.options[i].value === slot) {
+            startSelect.selectedIndex = i;
+            break;
+        }
+    }
+
+    // Pre-select end time to one slot after start
+    const endSelect = document.getElementById('modal_end_time');
+    const slotIndex = Array.from(startSelect.options)
+        .findIndex(o => o.value === slot);
+    endSelect.selectedIndex = Math.min(slotIndex + 2, endSelect.options.length - 1);
+
+    document.getElementById('blockModal').style.display = 'flex';
+}
+
+function closeBlockModal() {
+    document.getElementById('blockModal').style.display = 'none';
+}
+
+// Close modal on background click
+document.getElementById('blockModal').addEventListener('click', function(e) {
+    if (e.target === this) closeBlockModal();
+});
+
+// Date jump functions
 function syncFromPicker() {
     const picker = document.getElementById('datePicker').value;
     if (picker) {
@@ -72,7 +225,6 @@ function syncFromPicker() {
     }
 }
 
-// Sync from text box to hidden field (typed input)
 function syncFromText() {
     const input = document.getElementById('dateDisplay').value;
     const parts = input.split('-');
@@ -84,7 +236,6 @@ function syncFromText() {
     }
 }
 
-// On submit, convert MM-DD-YYYY to YYYY-MM-DD for the URL
 function submitDate() {
     const input = document.getElementById('dateDisplay').value;
     const parts = input.split('-');
