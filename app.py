@@ -1,4 +1,4 @@
-from flask import Flask, render_template, send_file
+from flask import Flask, render_template, send_file, redirect, url_for
 from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, seed_courts
 import csv
 import os
@@ -26,9 +26,8 @@ def index():
 def export():
     backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
     os.makedirs(backup_folder, exist_ok=True)
-    files = os.listdir(backup_folder)
-    last_backup = max(files) if files else None
-    return render_template('export.html', last_backup=last_backup)
+    files = sorted(os.listdir(backup_folder), reverse=True)
+    return render_template('export.html', backups=files)
 
 
 @app.route('/export/download')
@@ -100,7 +99,7 @@ def export_download():
             writer.writerow([g.id, g.booking_id, g.first_name, g.last_name,
                              g.phone, g.booked_by_member])
 
-    return send_file(filepath, as_attachment=True, download_name=filename)
+    return redirect(url_for('export'))
 
 
 @app.route('/export/backups/<filename>')
