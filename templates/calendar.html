@@ -42,14 +42,28 @@
                         {% if key in block_map %}
                             {% set block = block_map[key] %}
                             <td rowspan="{{ block.rowspan }}"
-                                style="background-color: #f8d7da; vertical-align: middle;
-                                       font-size: 0.85em; padding: 4px; position: relative;"
+                                style="background-color: #f8d7da;
+                                       background-image: repeating-linear-gradient(
+                                           45deg,
+                                           rgba(220,53,69,0.15) 0px,
+                                           rgba(220,53,69,0.15) 4px,
+                                           transparent 4px,
+                                           transparent 12px
+                                       );
+                                       vertical-align: top;
+                                       font-size: 0.85em;
+                                       padding: 6px 4px;
+                                       position: relative;
+                                       border: 2px solid #dc3545 !important;"
                                 class="blocked-cell"
                                 data-block-id="{{ block.block_id }}">
+                                <div style="font-weight: bold; color: #dc3545; font-size: 0.95em; margin-bottom: 2px;">
+                                    🚫 BLOCKED
+                                </div>
                                 <strong>{{ block.block_type }}</strong><br>
                                 {{ block.start }} – {{ block.end }}<br>
                                 <span style="font-size: 0.75em; color: #555;">{{ block.reason }}</span>
-                                <div class="block-hover-btn" style="display:none; margin-top: 4px;">
+                                <div class="block-hover-btn" style="display:none; margin-top: 6px;">
                                     <form method="POST" action="/blocks/remove/{{ block.block_id }}"
                                           style="margin:0;"
                                           onsubmit="return confirm('Remove this block?')">
@@ -184,12 +198,10 @@ function openBlockModal(courtNum, slot, dateStr) {
     document.getElementById('modal_date').value = dateStr;
     document.getElementById('modal_court_display').value = 'Court ' + courtNum;
 
-    // Format date for display MM-DD-YYYY
     const parts = dateStr.split('-');
     document.getElementById('modal_date_display').value =
         parts[1] + '-' + parts[2] + '-' + parts[0];
 
-    // Pre-select start time
     const startSelect = document.getElementById('modal_start_time');
     for (let i = 0; i < startSelect.options.length; i++) {
         if (startSelect.options[i].value === slot) {
@@ -198,7 +210,6 @@ function openBlockModal(courtNum, slot, dateStr) {
         }
     }
 
-    // Pre-select end time to one slot after start
     const endSelect = document.getElementById('modal_end_time');
     const slotIndex = Array.from(startSelect.options)
         .findIndex(o => o.value === slot);
@@ -211,12 +222,10 @@ function closeBlockModal() {
     document.getElementById('blockModal').style.display = 'none';
 }
 
-// Close modal on background click
 document.getElementById('blockModal').addEventListener('click', function(e) {
     if (e.target === this) closeBlockModal();
 });
 
-// Date jump functions
 function syncFromPicker() {
     const picker = document.getElementById('datePicker').value;
     if (picker) {
