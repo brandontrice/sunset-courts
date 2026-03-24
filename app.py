@@ -1,8 +1,8 @@
-from flask import Flask, render_template, send_file, redirect, url_for
+from flask import Flask, render_template, send_file, redirect, url_for, request
 from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, seed_courts
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sunset_courts.db'
@@ -20,6 +20,32 @@ with app.app_context():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/calendar')
+def calendar():
+    selected_date_str = request.args.get('date', date.today().isoformat())
+    selected_date = date.fromisoformat(selected_date_str)
+
+    prev_date = (selected_date - timedelta(days=1)).isoformat()
+    next_date = (selected_date + timedelta(days=1)).isoformat()
+
+    # Generate 30-minute time slots from 6:00 AM to 10:00 PM
+    time_slots = []
+    hour = 6
+    minute = 0
+    while hour < 22:
+        time_slots.append(f'{hour:02d}:{minute:02d}')
+        minute += 30
+        if minute == 60:
+            minute = 0
+            hour += 1
+
+    return render_template('calendar.html',
+                           selected_date=selected_date_str,
+                           prev_date=prev_date,
+                           next_date=next_date,
+                           time_slots=time_slots)
 
 
 @app.route('/export')
@@ -64,7 +90,7 @@ def export_download():
 
         # Courts section
         writer.writerow(['COURTS'])
-        writer.writerow(['ID', 'Court Number', 'Is Active'])
+        writer.writerow(['ID','Court Number', 'Is Active'])
         for c in Court.query.all():
             writer.writerow([c.id, c.court_number, c.is_active])
 
