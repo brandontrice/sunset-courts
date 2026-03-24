@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>Court Bookings</h1>
+<h1>Calendar View: Bookings</h1>
 
 <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
     <a href="/calendar?date={{ prev_date }}" class="btn btn-secondary btn-sm">← Previous</a>
@@ -10,10 +10,14 @@
 
     <form method="GET" action="/calendar" id="dateForm" style="margin: 0; display: flex; align-items: center; gap: 8px;">
         <label for="dateDisplay" style="margin: 0;">Jump to:</label>
+        <input type="date" id="datePicker"
+               style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;"
+               onchange="syncFromPicker()">
         <input type="text" id="dateDisplay" placeholder="MM-DD-YYYY"
-               style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px;">
+               style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px;"
+               oninput="syncFromText()">
         <input type="hidden" id="date" name="date">
-        <button type="submit" class="btn btn-primary btn-sm" onclick="return formatDate()">Go</button>
+        <button type="submit" class="btn btn-primary btn-sm" onclick="return submitDate()">Go</button>
     </form>
 
     <a href="/calendar?date={{ today }}" class="btn btn-outline-secondary btn-sm">Today</a>
@@ -59,10 +63,32 @@
 </div>
 
 <script>
-function formatDate() {
+// Sync from calendar picker to text box
+function syncFromPicker() {
+    const picker = document.getElementById('datePicker').value;
+    if (picker) {
+        const [yyyy, mm, dd] = picker.split('-');
+        document.getElementById('dateDisplay').value = `${mm}-${dd}-${yyyy}`;
+    }
+}
+
+// Sync from text box to hidden field (typed input)
+function syncFromText() {
     const input = document.getElementById('dateDisplay').value;
     const parts = input.split('-');
-    if (parts.length === 3) {
+    if (parts.length === 3 && parts[2].length === 4) {
+        const mm = parts[0].padStart(2, '0');
+        const dd = parts[1].padStart(2, '0');
+        const yyyy = parts[2];
+        document.getElementById('datePicker').value = `${yyyy}-${mm}-${dd}`;
+    }
+}
+
+// On submit, convert MM-DD-YYYY to YYYY-MM-DD for the URL
+function submitDate() {
+    const input = document.getElementById('dateDisplay').value;
+    const parts = input.split('-');
+    if (parts.length === 3 && parts[2].length === 4) {
         const mm = parts[0].padStart(2, '0');
         const dd = parts[1].padStart(2, '0');
         const yyyy = parts[2];
