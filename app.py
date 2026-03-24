@@ -27,6 +27,7 @@ def index():
 def calendar():
     selected_date_str = request.args.get('date', date.today().isoformat())
     selected_date = date.fromisoformat(selected_date_str)
+    display_date = selected_date.strftime('%m-%d-%Y')
 
     prev_date = (selected_date - timedelta(days=1)).isoformat()
     next_date = (selected_date + timedelta(days=1)).isoformat()
@@ -68,7 +69,6 @@ def calendar():
             'rowspan': duration_slots,
             'has_guest': b.has_guest
         }
-        # Mark all slots this booking occupies so we skip them
         current = start_total
         while current < end_total:
             h = current // 60
@@ -78,6 +78,7 @@ def calendar():
 
     return render_template('calendar.html',
                            selected_date=selected_date_str,
+                           display_date=display_date,
                            prev_date=prev_date,
                            next_date=next_date,
                            today=date.today().isoformat(),
