@@ -24,7 +24,23 @@
                 <tr>
                     <td style="font-size: 0.85em; white-space: nowrap; vertical-align: middle;">{{ slot }}</td>
                     {% for i in range(1, 7) %}
-                        <td style="height: 40px; background-color: #f9f9f9;"></td>
+                        {% set key = (i, slot) %}
+                        {% if key in booking_map %}
+                            {% set booking = booking_map[key] %}
+                            <td rowspan="{{ booking.rowspan }}"
+                                style="background-color: #d4edda; vertical-align: middle;
+                                       font-size: 0.85em; padding: 4px;">
+                                <strong>{{ booking.member_name }}</strong><br>
+                                {{ booking.start }} – {{ booking.end }}
+                                {% if booking.has_guest %}
+                                    <br><span style="font-size: 0.75em; color: #555;">+ Guest</span>
+                                {% endif %}
+                            </td>
+                        {% elif key in booked_cells %}
+                            {# This cell is covered by a rowspan above — skip it #}
+                        {% else %}
+                            <td style="height: 40px; background-color: #f9f9f9;"></td>
+                        {% endif %}
                     {% endfor %}
                 </tr>
             {% endfor %}
