@@ -80,6 +80,7 @@ def calendar():
                            selected_date=selected_date_str,
                            prev_date=prev_date,
                            next_date=next_date,
+                           today=date.today().isoformat(),
                            time_slots=time_slots,
                            booking_map=booking_map,
                            booked_cells=booked_cells)
