@@ -1,5 +1,5 @@
 from flask import Flask, render_template, send_file, redirect, url_for, request
-from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, seed_courts
+from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, seed_courts, seed_test_data
 import csv
 import os
 from datetime import datetime, date, timedelta
@@ -14,6 +14,7 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
     seed_courts()
+    seed_test_data()
     print('Database tables created successfully.')
 
 
@@ -41,11 +42,47 @@ def calendar():
             minute = 0
             hour += 1
 
+    # Query active bookings for selected date
+    bookings = Booking.query.filter_by(
+        date=selected_date,
+        is_cancelled=False
+    ).all()
+
+    # Build a lookup: {(court_id, 'HH:MM'): booking}
+    booking_map = {}
+    booked_cells = set()
+    for b in bookings:
+        member = Member.query.get(b.member_id)
+        start_hour = b.start_time.hour
+        start_min = b.start_time.minute
+        end_hour = b.end_time.hour
+        end_min = b.end_time.minute
+        start_total = start_hour * 60 + start_min
+        end_total = end_hour * 60 + end_min
+        duration_slots = (end_total - start_total) // 30
+        slot_key = f'{start_hour:02d}:{start_min:02d}'
+        booking_map[(b.court_id, slot_key)] = {
+            'member_name': f'{member.first_name} {member.last_name}',
+            'start': slot_key,
+            'end': f'{end_hour:02d}:{end_min:02d}',
+            'rowspan': duration_slots,
+            'has_guest': b.has_guest
+        }
+        # Mark all slots this booking occupies so we skip them
+        current = start_total
+        while current < end_total:
+            h = current // 60
+            m = current % 60
+            booked_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
+            current += 30
+
     return render_template('calendar.html',
                            selected_date=selected_date_str,
                            prev_date=prev_date,
                            next_date=next_date,
-                           time_slots=time_slots)
+                           time_slots=time_slots,
+                           booking_map=booking_map,
+                           booked_cells=booked_cells)
 
 
 @app.route('/export')
@@ -90,7 +127,7 @@ def export_download():
 
         # Courts section
         writer.writerow(['COURTS'])
-        writer.writerow(['ID','Court Number', 'Is Active'])
+        writer.writerow(['ID', 'Court Number', 'Is Active'])
         for c in Court.query.all():
             writer.writerow([c.id, c.court_number, c.is_active])
 
