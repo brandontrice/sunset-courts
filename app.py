@@ -83,7 +83,7 @@ def export_download():
 
         # Bookings section
         writer.writerow(['BOOKINGS'])
-        writer.writerow(['ID', 'Court ID', 'Member ID', 'Date', 'Start Time',
+        writer.writerow(['ID','Court ID', 'Member ID', 'Date', 'Start Time',
                          'End Time', 'Has Guest', 'Is Cancelled', 'Created At'])
         for b in Booking.query.all():
             writer.writerow([b.id, b.court_id, b.member_id, b.date,
@@ -101,6 +101,12 @@ def export_download():
                              g.phone, g.booked_by_member])
 
     return send_file(filepath, as_attachment=True, download_name=filename)
+
+
+@app.route('/export/backups/<filename>')
+def serve_backup(filename):
+    backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
+    return send_file(os.path.join(backup_folder, filename), as_attachment=False, mimetype='text/csv')
 
 
 if __name__ == '__main__':
