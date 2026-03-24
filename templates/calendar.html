@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Court Bookings</h1>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
+    <a href="/calendar?date={{ prev_date }}" class="btn btn-secondary btn-sm">← Previous</a>
+    <strong>{{ selected_date }}</strong>
+    <a href="/calendar?date={{ next_date }}" class="btn btn-secondary btn-sm">Next →</a>
+</div>
+
+<div style="overflow-x: auto;">
+    <table class="table table-bordered text-center" style="min-width: 900px; table-layout: fixed;">
+        <thead class="thead-dark">
+            <tr>
+                <th style="width: 80px;">Time</th>
+                {% for i in range(1, 7) %}
+                    <th>Court {{ i }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for slot in time_slots %}
+                <tr>
+                    <td style="font-size: 0.85em; white-space: nowrap; vertical-align: middle;">{{ slot }}</td>
+                    {% for i in range(1, 7) %}
+                        <td style="height: 40px; background-color: #f9f9f9;"></td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
