@@ -2,36 +2,32 @@
 {% block content %}
 
 <h1>Court Bookings</h1>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simple Scheduler</title>
+</head>
+<body>
 
-<!-- Add Block Modal -->
-<div id="blockModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-     background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background:#fff; padding:30px; border-radius:8px; width:400px; max-width:90%;">
-        <h4>Add Court Block</h4>
-        <form id="blockForm">
-            <input type="hidden" name="court_id" id="modal_court_id">
-            <input type="hidden" name="date" id="modal_date">
+<h2>Book an Appointment</h2>
 
-            <div style="margin-bottom: 12px;">
-                <label>Court</label>
-                <input type="text" id="modal_court_display" class="form-control" readonly>
-            </div>
+<form id="scheduleForm">
+  <label>Name:</label><br>
+  <input type="text" id="name" required><br><br>
 
-            <div style="margin-bottom: 12px;">
-                <label>Date</label>
-                <input type="text" id="modal_date_display" class="form-control" readonly>
-            </div>
+  <label>Date:</label><br>
+  <input type="date" id="date" required><br><br>
 
-            <div style="margin-bottom: 12px;">
-                <label>Start Time</label>
-                <select name="start_time" id="modal_start_time" class="form-control">
-                    {% for slot in time_slots %}
-                        <option value="{{ slot }}">{{ slot }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-</div>
+  <label>Time:</label><br>
+  <input type="time" id="time" required><br><br>
 
+  <button type="submit">Schedule</button>
+</form>
 
+<h3>Appointments:</h3>
+<ul id="appointmentsList"></ul>
 
+<script src="script.js"></script>
 
+</body>
+</html>
