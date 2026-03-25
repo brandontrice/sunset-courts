@@ -1,18 +1,13 @@
-{% extends "base.html" %}
-{% block content %}
+<html>
 
 <h1>Court Bookings</h1>
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Simple Scheduler</title>
-</head>
+
 <body>
 
 <h2>Book an Appointment</h2>
 
 <form id="scheduleForm">
-  <label>Name:</label><br>
+  <label>Member Name or ID:</label><br>
   <input type="text" id="name" required><br><br>
 
   <label>Date:</label><br>
@@ -21,13 +16,16 @@
   <label>Time:</label><br>
   <input type="time" id="time" required><br><br>
 
+  <label>Guest:</label><br>
+  <input type="Number of Guest" id="Guest"><br><br>
+  <label>Guest Phone Number:</label><br>
+  <input type="Phone Number" id="Guest Phone Number"><br><br>
+  
   <button type="submit">Schedule</button>
 </form>
 
 <h3>Appointments:</h3>
 <ul id="appointmentsList"></ul>
-
-<script src="script.js"></script>
 
 </body>
 </html>
