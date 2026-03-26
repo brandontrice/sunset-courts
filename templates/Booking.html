@@ -1,52 +1,121 @@
 {% extends "base.html" %}
 {% block content %}
 
-<!DOCTYPE html>
-<html>
-<h1><title>Court Scheduler</title></h1>
+<h2>Book a Court</h2>
 
-  <body>
+<label>Member ID:</label>
+<input type="text" id="memberId">
+<button onclick="lookupMember()">Lookup</button>
 
-    <h2>Court Scheduling System</h2>
-
-  <label>Member ID:</label>
-  <input type="text" id="memberId">
-  <button onclick="lookupMember()">Lookup</button>
-
+<!-- Member info section is hidden until a valid member is found via lookup -->
+<div id="memberInfo" style="display:none;">
   <h3>Member Info</h3>
   <p>Name: <span id="name"></span></p>
   <p>Email: <span id="email"></span></p>
 
-  <h3>Schedule Court Date</h3>
+  <h3>Schedule a Court</h3>
+  <label>Date:</label>
   <input type="date" id="date">
-  <input type="time" id="time">
-  <button onclick="schedule()">Schedule</button>
 
-  <script>
-    async function lookupMember() {
-      const id = document.getElementById("memberId").value;
+  <!-- Court dropdown is populated by Flask passing the courts list from the /booking route -->
+  <label>Court:</label>
+  <select id="courtId">
+    {% for court in courts %}
+      <option value="{{ court.id }}">Court {{ court.court_number }}</option>
+    {% endfor %}
+  </select>
 
+  <!-- step="1800" restricts time picker to 30-minute increments (1800 seconds) -->
+  <label>Start Time:</label>
+  <input type="time" id="startTime" step="1800">
+
+  <label>End Time:</label>
+  <input type="time" id="endTime" step="1800">
+
+  <!-- Optional guest flag — maps to has_guest on the Booking model -->
+  <label>
+    <input type="checkbox" id="hasGuest"> Bringing a guest?
+  </label>
+
+  <br><br>
+  <button onclick="scheduleBooking()">Book Court</button>
+  <!-- Booking result message displayed here instead of using alert() -->
+  <p id="bookingMessage"></p>
+</div>
+
+<script>
+  // Stores the resolved member ID after a successful lookup
+  let resolvedMemberId = null;
+
+  async function lookupMember() {
+    const id = document.getElementById("memberId").value.trim();
+    if (!id) return;
+
+    // Calls the /member/<id> route in app.py to validate the member
     const res = await fetch(`/member/${id}`);
     const data = await res.json();
 
-    document.getElementById("name").textContent = data.name || "Not found";
-    document.getElementById("email").textContent = data.email || "";
+    // If the member is invalid, banned, or inactive, hide the form and alert
+    if (data.error) {
+      document.getElementById("memberInfo").style.display = "none";
+      alert(data.error);
+      return;
+    }
+
+    // Store the member ID so it can be sent with the booking request
+    resolvedMemberId = data.id;
+    document.getElementById("name").textContent = data.name;
+    document.getElementById("email").textContent = data.email || "N/A";
+
+    // Reveal the booking form now that a valid member is confirmed
+    document.getElementById("memberInfo").style.display = "block";
   }
 
-  async function schedule() {
-    const memberId = document.getElementById("memberId").value;
+  async function scheduleBooking() {
+    const courtId = document.getElementById("courtId").value;
     const date = document.getElementById("date").value;
-    const time = document.getElementById("time").value;
+    const startTime = document.getElementById("startTime").value;
+    const endTime = document.getElementById("endTime").value;
+    const hasGuest = document.getElementById("hasGuest").checked;
+    const msgEl = document.getElementById("bookingMessage");
 
-    await fetch("/schedule", {
+    // Basic client-side validation before hitting the server
+    if (!date || !startTime || !endTime) {
+      msgEl.textContent = "Please fill in all fields.";
+      return;
+    }
+
+    // Prevent end time from being the same as or before start time
+    if (startTime >= endTime) {
+      msgEl.textContent = "End time must be after start time.";
+      return;
+    }
+
+    // POST to /bookings/add in app.py which handles conflict checking and saving
+    const res = await fetch("/bookings/add", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ memberId, date, time })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        member_id: resolvedMemberId,
+        court_id: courtId,
+        date: date,
+        start_time: startTime,
+        end_time: endTime,
+        has_guest: hasGuest
+      })
     });
 
-    alert("Court date scheduled!");
-  }
-  </script>
+    const data = await res.json();
 
-</body>
-</html>
+    // Display success or error message returned from the server
+    if (data.success) {
+      msgEl.style.color = "green";
+      msgEl.textContent = "Booking confirmed!";
+    } else {
+      msgEl.style.color = "red";
+      msgEl.textContent = data.error || "Booking failed.";
+    }
+  }
+</script>
+
+{% endblock %}
