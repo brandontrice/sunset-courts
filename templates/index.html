@@ -2,20 +2,45 @@
 {% block content %}
 
 <div style="text-align: center; margin-top: 20px;">
-    <img src="{{ url_for('static', filename='sunset_courts_logo.png') }}" 
-         alt="Sunset Courts Logo" 
+    <img src="{{ url_for('static', filename='sunset_courts_logo.png') }}"
+         alt="Sunset Courts Logo"
          style="max-width: 400px; margin-bottom: 20px;">
-
     <h1>Welcome to Sunset Courts!</h1>
     <p>Select an option from the menu to get started.</p>
+</div>
 
-    <div style="margin-top: 30px;">
-        <a href="/members" class="btn">Members</a>
-        <a href="/dues" class="btn">Dues</a>
-        <a href="/bookings" class="btn">Bookings</a>
-        <a href="/calendar" class="btn">Calendar</a>
-        <a href="/reports" class="btn">Reports</a>
-        <a href="/export" class="btn btn-success">Export Data</a>
+<div style="max-width: 700px; margin: 30px auto;">
+    <h2 style="text-align: center;">Today's Schedule — {{ today_display }}</h2>
+
+    {% if bookings %}
+        <table class="table table-bordered table-sm" style="margin-top: 15px;">
+            <thead>
+                <tr>
+                    <th>Court</th>
+                    <th>Member</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Guest</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bookings %}
+                <tr>
+                    <td>Court {{ b.court_number }}</td>
+                    <td>{{ b.member_name }}</td>
+                    <td>{{ b.start }}</td>
+                    <td>{{ b.end }}</td>
+                    <td>{{ 'Yes' if b.has_guest else 'No' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="text-align: center; color: gray;">No bookings scheduled for today.</p>
+    {% endif %}
+
+    <div style="text-align: center; margin-top: 15px;">
+        <a href="/calendar" class="btn">View Full Calendar</a>
     </div>
 </div>
 
