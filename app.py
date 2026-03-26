@@ -229,7 +229,7 @@ def move_booking(booking_id):
     return redirect(url_for('calendar', date=redirect_date))
 
 
-@app.route('/booking')
+@app.route('/bookings')
 def booking():
     # Pass all active courts to the template to populate the court dropdown
     courts = Court.query.filter_by(is_active=True).all()
