@@ -27,7 +27,7 @@ def index():
     raw_bookings = Booking.query.filter_by(
         date=today,
         is_cancelled=False
-    ).order_by(Booking.court_id, Booking.start_time).all()
+    ).order_by(Booking.start_time, Booking.court_id).all()
 
     bookings = []
     for b in raw_bookings:
