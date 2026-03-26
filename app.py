@@ -229,6 +229,76 @@ def move_booking(booking_id):
     return redirect(url_for('calendar', date=redirect_date))
 
 
+@app.route('/booking')
+def booking():
+    # Pass all active courts to the template to populate the court dropdown
+    courts = Court.query.filter_by(is_active=True).all()
+    return render_template('booking.html', courts=courts)
+
+
+@app.route('/member/<int:member_id>')
+def get_member(member_id):
+    # Lookup member by ID and validate they are active and not banned
+    member = Member.query.get(member_id)
+    if not member or not member.is_active or member.is_banned:
+        return jsonify({'error': 'Member not found or not eligible'}), 404
+    return jsonify({
+        'id': member.id,
+        'name': f'{member.first_name} {member.last_name}',
+        'email': member.email,
+        'role': member.role
+    })
+
+
+@app.route('/bookings/add', methods=['POST'])
+def add_booking():
+    data = request.get_json()
+
+    member_id = data.get('member_id')
+    court_id = int(data.get('court_id'))
+    booking_date = date.fromisoformat(data.get('date'))
+    start_time = datetime.strptime(data.get('start_time'), '%H:%M').time()
+    end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
+    has_guest = bool(data.get('has_guest', False))
+
+    start_total = start_time.hour * 60 + start_time.minute
+    end_total = end_time.hour * 60 + end_time.minute
+
+    # Check for conflicts with existing bookings on the same court and date
+    existing = Booking.query.filter_by(
+        court_id=court_id,
+        date=booking_date,
+        is_cancelled=False
+    ).all()
+
+    for b in existing:
+        b_start = b.start_time.hour * 60 + b.start_time.minute
+        b_end = b.end_time.hour * 60 + b.end_time.minute
+        if b_start < end_total and b_end > start_total:
+            return jsonify({'error': 'That court is already booked during that time.'}), 409
+
+    # Check for conflicts with any court blocks on the same court and date
+    blocks = CourtBlock.query.filter_by(court_id=court_id, date=booking_date).all()
+    for bl in blocks:
+        bl_start = bl.start_time.hour * 60 + bl.start_time.minute
+        bl_end = bl.end_time.hour * 60 + bl.end_time.minute
+        if bl_start < end_total and bl_end > start_total:
+            return jsonify({'error': 'That court is blocked during that time.'}), 409
+
+    new_booking = Booking(
+        court_id=court_id,
+        member_id=member_id,
+        date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        has_guest=has_guest
+    )
+    db.session.add(new_booking)
+    db.session.commit()
+
+    return jsonify({'success': True, 'booking_id': new_booking.id})
+
+
 @app.route('/export')
 def export():
     backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
