@@ -102,6 +102,7 @@ def seed_courts():
 def seed_test_data():
     from datetime import date, time
 
+    # Seed members only once
     if Member.query.count() == 0:
         test_members = [
             Member(first_name='John', last_name='Smith', phone='5401111111',
@@ -119,29 +120,33 @@ def seed_test_data():
             db.session.add(m)
         db.session.commit()
 
-    if Booking.query.count() == 0:
-        today = date.today()
-        test_bookings = [
-            Booking(court_id=1, member_id=1, date=today,
-                    start_time=time(9, 0), end_time=time(10, 0), is_cancelled=False),
-            Booking(court_id=1, member_id=2, date=today,
-                    start_time=time(11, 0), end_time=time(12, 30), is_cancelled=False),
-            Booking(court_id=2, member_id=3, date=today,
-                    start_time=time(10, 0), end_time=time(10, 30), is_cancelled=False),
-            Booking(court_id=2, member_id=4, date=today,
-                    start_time=time(13, 0), end_time=time(14, 0), is_cancelled=False),
-            Booking(court_id=3, member_id=5, date=today,
-                    start_time=time(8, 0), end_time=time(9, 0), is_cancelled=False),
-            Booking(court_id=3, member_id=1, date=today,
-                    start_time=time(14, 0), end_time=time(14, 30), is_cancelled=False),
-            Booking(court_id=4, member_id=2, date=today,
-                    start_time=time(9, 0), end_time=time(10, 30), is_cancelled=False),
-            Booking(court_id=5, member_id=3, date=today,
-                    start_time=time(15, 0), end_time=time(16, 0), is_cancelled=False),
-            Booking(court_id=6, member_id=4, date=today,
-                    start_time=time(10, 0), end_time=time(11, 0),
-                    has_guest=True, is_cancelled=False),
-        ]
-        for b in test_bookings:
-            db.session.add(b)
-        db.session.commit()
+    # Always clear and re-seed bookings so dates stay current
+    Guest.query.delete()
+    Booking.query.delete()
+    db.session.commit()
+
+    today = date.today()
+    test_bookings = [
+        Booking(court_id=1, member_id=1, date=today,
+                start_time=time(9, 0), end_time=time(10, 0), is_cancelled=False),
+        Booking(court_id=1, member_id=2, date=today,
+                start_time=time(11, 0), end_time=time(12, 30), is_cancelled=False),
+        Booking(court_id=2, member_id=3, date=today,
+                start_time=time(10, 0), end_time=time(10, 30), is_cancelled=False),
+        Booking(court_id=2, member_id=4, date=today,
+                start_time=time(13, 0), end_time=time(14, 0), is_cancelled=False),
+        Booking(court_id=3, member_id=5, date=today,
+                start_time=time(8, 0), end_time=time(9, 0), is_cancelled=False),
+        Booking(court_id=3, member_id=1, date=today,
+                start_time=time(14, 0), end_time=time(14, 30), is_cancelled=False),
+        Booking(court_id=4, member_id=2, date=today,
+                start_time=time(9, 0), end_time=time(10, 30), is_cancelled=False),
+        Booking(court_id=5, member_id=3, date=today,
+                start_time=time(15, 0), end_time=time(16, 0), is_cancelled=False),
+        Booking(court_id=6, member_id=4, date=today,
+                start_time=time(10, 0), end_time=time(11, 0),
+                has_guest=True, is_cancelled=False),
+    ]
+    for b in test_bookings:
+        db.session.add(b)
+    db.session.commit()
