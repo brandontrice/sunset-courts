@@ -20,7 +20,28 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    today = date.today()
+    today_display = today.strftime('%B %d, %Y')
+
+    # Fetch today's bookings and build a display-friendly list
+    raw_bookings = Booking.query.filter_by(
+        date=today,
+        is_cancelled=False
+    ).order_by(Booking.court_id, Booking.start_time).all()
+
+    bookings = []
+    for b in raw_bookings:
+        member = Member.query.get(b.member_id)
+        court = Court.query.get(b.court_id)
+        bookings.append({
+            'court_number': court.court_number,
+            'member_name': f'{member.first_name} {member.last_name}',
+            'start': b.start_time.strftime('%I:%M %p'),
+            'end': b.end_time.strftime('%I:%M %p'),
+            'has_guest': b.has_guest
+        })
+
+    return render_template('index.html', bookings=bookings, today_display=today_display)
 
 
 @app.route('/calendar')
