@@ -2,21 +2,50 @@
 {% block content %}
 <h1>{{ filename }}</h1>
 <a href="/export" class="btn btn-secondary" style="margin-bottom: 20px;">← Back to Export</a>
-<div style="overflow-x: auto;">
-    <table class="table table-bordered table-sm" style="margin-top: 20px; white-space: nowrap;">
-        {% for row in rows %}
-            {% if row | length == 1 %}
-                <tr><td colspan="20" style="font-weight: bold; background-color: #f0f0f0;">{{ row[0] }}</td></tr>
-            {% elif row | length == 0 %}
-                <tr><td colspan="20">&nbsp;</td></tr>
-            {% else %}
+
+{% set ns = namespace(rows=[]) %}
+
+{% for row in rows %}
+    {% if row | length == 1 and ns.rows | length > 0 %}
+        <!-- Close previous section and render its table -->
+        <div style="overflow-x: auto; margin-bottom: 30px;">
+            <table class="table table-bordered table-sm" style="white-space: nowrap;">
+                {% for r in ns.rows %}
+                    <tr>
+                        {% for cell in r %}
+                            <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% set ns.rows = [] %}
+    {% endif %}
+
+    {% if row | length == 1 %}
+        <!-- Section header -->
+        <h3 style="margin-top: 20px;">{{ row[0] }}</h3>
+        {% set ns.rows = [] %}
+    {% elif row | length == 0 %}
+        {# skip blank rows #}
+    {% else %}
+        {% set ns.rows = ns.rows + [row] %}
+    {% endif %}
+{% endfor %}
+
+<!-- Render the final section -->
+{% if ns.rows | length > 0 %}
+    <div style="overflow-x: auto; margin-bottom: 30px;">
+        <table class="table table-bordered table-sm" style="white-space: nowrap;">
+            {% for r in ns.rows %}
                 <tr>
-                    {% for cell in row %}
+                    {% for cell in r %}
                         <td>{{ cell }}</td>
                     {% endfor %}
                 </tr>
-            {% endif %}
-        {% endfor %}
-    </table>
-</div>
+            {% endfor %}
+        </table>
+    </div>
+{% endif %}
+
 {% endblock %}
