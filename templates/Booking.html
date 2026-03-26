@@ -1,32 +1,52 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>Court Bookings</h1>
+<!DOCTYPE html>
+<html>
+<h1><title>Court Scheduler</title></h1>
 
-<body>
+  <body>
 
-<h2>Book an Appointment</h2>
+    <h2>Court Scheduling System</h2>
 
-<form id="scheduleForm">
-  <label>Member Name or ID:</label><br>
-  <input type="text" id="name" required><br><br>
+  <label>Member ID:</label>
+  <input type="text" id="memberId">
+  <button onclick="lookupMember()">Lookup</button>
 
-  <label>Date:</label><br>
-  <input type="date" id="date" required><br><br>
+  <h3>Member Info</h3>
+  <p>Name: <span id="name"></span></p>
+  <p>Email: <span id="email"></span></p>
 
-  <label>Time:</label><br>
-  <input type="time" id="time" required><br><br>
+  <h3>Schedule Court Date</h3>
+  <input type="date" id="date">
+  <input type="time" id="time">
+  <button onclick="schedule()">Schedule</button>
 
-  <label>Guest:</label><br>
-  <input type="Number of Guest" id="Guest"><br><br>
-  <label>Guest Phone Number:</label><br>
-  <input type="Phone Number" id="Guest Phone Number"><br><br>
-  
-  <button type="submit">Schedule</button>
-</form>
+  <script>
+    async function lookupMember() {
+      const id = document.getElementById("memberId").value;
 
-<h3>Appointments:</h3>
-<ul id="appointmentsList"></ul>
+    const res = await fetch(`/member/${id}`);
+    const data = await res.json();
+
+    document.getElementById("name").textContent = data.name || "Not found";
+    document.getElementById("email").textContent = data.email || "";
+  }
+
+  async function schedule() {
+    const memberId = document.getElementById("memberId").value;
+    const date = document.getElementById("date").value;
+    const time = document.getElementById("time").value;
+
+    await fetch("/schedule", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ memberId, date, time })
+    });
+
+    alert("Court date scheduled!");
+  }
+  </script>
 
 </body>
 </html>
