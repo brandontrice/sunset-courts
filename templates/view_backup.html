@@ -2,9 +2,8 @@
 {% block content %}
 <h1>{{ filename }}</h1>
 <a href="/export" class="btn btn-secondary" style="margin-bottom: 20px;">← Back to Export</a>
-
 <div style="overflow-x: auto;">
-    <table class="table table-bordered table-sm" style="margin-top: 20px;">
+    <table class="table table-bordered table-sm" style="margin-top: 20px; white-space: nowrap;">
         {% for row in rows %}
             {% if row | length == 1 %}
                 <tr><td colspan="20" style="font-weight: bold; background-color: #f0f0f0;">{{ row[0] }}</td></tr>
