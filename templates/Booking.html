@@ -37,6 +37,12 @@
     <input type="checkbox" id="hasGuest"> Bringing a guest?
   </label>
 
+  <!-- Guest info input section is hidden until hasGuest is checked -->
+  <div id="hasGuest" style="display:none;">
+    <h3>Guest Info</h3>
+    <input type="Name" id="GuestName">
+    <input type="PhoneNumber" id="GuestPhoneNumber">
+  
   <br><br>
   <button onclick="scheduleBooking()">Book Court</button>
   <!-- Booking result message displayed here instead of using alert() -->
