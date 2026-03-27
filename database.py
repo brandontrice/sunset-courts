@@ -8,13 +8,14 @@ class Member(db.Model):
     __tablename__ = 'members'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    phone = db.Column(db.String(20), unique=True, nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(100))
     join_date = db.Column(db.DateTime, default=datetime.utcnow)
     family_name = db.Column(db.String(100))
     is_active = db.Column(db.Boolean, default=True)
+    inactive_reason = db.Column(db.String(200))
     is_banned = db.Column(db.Boolean, default=False)
     ban_reason = db.Column(db.String(200))
     ban_date = db.Column(db.DateTime)
@@ -23,6 +24,24 @@ class Member(db.Model):
 
     dues = db.relationship('Dues', backref='member', lazy=True)
     bookings = db.relationship('Booking', backref='member', lazy=True)
+
+    #Status Display added to members for UI - Added by Channing
+    @property
+    def status(self):
+        if self.is_banned:
+            return 'banned'
+        elif not self.is_active:
+            return 'left'
+        else:
+            return 'active'
+
+    @property
+    def status_display(self):
+        return {
+            'active': '🟢 Active',
+            'left':   '⚪ Left Club',
+            'banned': '🔴 Banned'
+        }.get(self.status, '❓ Unknown')
 
 
 class Dues(db.Model):
@@ -90,6 +109,59 @@ class Guest(db.Model):
     last_name = db.Column(db.String(50))
     phone = db.Column(db.String(20))
     booked_by_member = db.Column(db.Integer, db.ForeignKey('members.id'))
+
+
+#Ban Log Table - Added by Channing
+class BanLog(db.Model):
+    __tablename__ = 'ban_log'
+
+    id         = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    member_id  = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    ban_reason = db.Column(db.Text, nullable=False)
+    banned_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    banned_by  = db.Column(db.String(100), nullable=False)
+
+    member     = db.relationship('Member', backref='ban_logs')
+
+
+#Inactive Account Log Table -Added by Channing
+class InactiveLog(db.Model):
+    __tablename__ = 'inactive_log'
+
+    id          = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    member_id   = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    reason      = db.Column(db.Text, nullable=False)
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    recorded_by = db.Column(db.String(100), nullable=False)
+    is_current  = db.Column(db.Boolean, default=True)  # tracks the most recent reason
+
+    member      = db.relationship('Member', backref='inactive_logs')
+
+
+#Ban helper Funtion - Added by Channing
+def ban_member(member_id, reason, banned_by):
+    member = Member.query.get(member_id)
+    member.is_banned = True
+    member.is_active = False
+    member.ban_reason = reason
+    member.ban_date = datetime.utcnow()
+
+    log = BanLog(
+        member_id=member_id,
+        ban_reason=reason,
+        banned_by=banned_by
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+#Members Search Function - Added by Channing
+def search_members(search_term):
+    return Member.query.filter(
+        (Member.phone == search_term) |
+        (Member.first_name.ilike(f'%{search_term}%')) |
+        (Member.last_name.ilike(f'%{search_term}%'))
+    ).all()
 
 
 def seed_courts():
