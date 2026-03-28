@@ -283,14 +283,18 @@
 
                         {# ── EMPTY / AVAILABLE ── #}
                         {% else %}
-                            <td style="height: 40px; background-color: #f9f9f9; position: relative;"
+                            <td style="height: 52px; background-color: #f9f9f9; position: relative;"
                                 class="empty-cell"
                                 data-court="{{ i }}"
                                 data-slot="{{ slot }}"
                                 data-date="{{ selected_date }}">
-                                <div class="add-block-btn" style="display:none;">
+                                <div class="empty-hover-btns" style="display:none; flex-direction:column; gap:4px; align-items:center; justify-content:center;">
+                                    <a href="/bookings" class="btn btn-success btn-sm"
+                                       style="font-size: 0.75em; padding: 2px 6px; width: 90px; text-align:center;">
+                                        + Add Booking
+                                    </a>
                                     <button type="button" class="btn btn-warning btn-sm"
-                                            style="font-size: 0.75em; padding: 2px 6px;"
+                                            style="font-size: 0.75em; padding: 2px 6px; width: 90px;"
                                             onclick="openBlockModal({{ i }}, '{{ slot }}', '{{ selected_date }}')">
                                         + Add Block
                                     </button>
@@ -440,10 +444,12 @@ function toggleCancelled() {
 // ── Hover interactions ────────────────────────────────────────────────────────
 document.querySelectorAll('.empty-cell').forEach(cell => {
     cell.addEventListener('mouseenter', () => {
-        cell.querySelector('.add-block-btn').style.display = 'block';
+        const btns = cell.querySelector('.empty-hover-btns');
+        if (btns) btns.style.display = 'flex';
     });
     cell.addEventListener('mouseleave', () => {
-        cell.querySelector('.add-block-btn').style.display = 'none';
+        const btns = cell.querySelector('.empty-hover-btns');
+        if (btns) btns.style.display = 'none';
     });
 });
 
