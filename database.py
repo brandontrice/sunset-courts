@@ -175,7 +175,9 @@ def seed_courts():
 def seed_test_data():
     from datetime import date, time
 
-    # Seed members only once
+    today = date.today()
+
+    # Seed members only once — never wiped on restart
     if Member.query.count() == 0:
         test_members = [
             Member(first_name='John', last_name='Smith', phone='5401111111',
@@ -193,12 +195,18 @@ def seed_test_data():
             db.session.add(m)
         db.session.commit()
 
-    # Always clear and re-seed bookings so dates stay current
-    Guest.query.delete()
-    Booking.query.delete()
-    db.session.commit()
+    # Only reseed today's bookings if none exist for today yet.
+    # This means:
+    #   - Restarting the app mid-day preserves all bookings made so far today.
+    #   - On the first start of a new day, today has no bookings so the default
+    #     set is inserted fresh (yesterday's bookings stay in history untouched).
+    existing_today = Booking.query.filter_by(date=today).first()
+    if existing_today:
+        # Bookings already exist for today — don't touch anything.
+        return
 
-    today = date.today()
+    # First start of the day: seed default bookings for today only.
+    # Previous days' bookings are left in the database as history.
     test_bookings = [
         Booking(court_id=1, member_id=1, date=today,
                 start_time=time(9, 0), end_time=time(10, 0), is_cancelled=False),
