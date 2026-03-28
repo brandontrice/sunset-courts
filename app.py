@@ -91,8 +91,11 @@ def calendar():
             booked_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
             current += 30
 
-    # Cancelled bookings — fetched separately so they display on the calendar
-    # with a distinct red/cancelled style rather than being hidden entirely
+    # Cancelled bookings — always fetched; the toggle to show/hide is handled
+    # client-side in calendar.html so we don't need a separate route.
+    # Cancelled entries that overlap an active booking on the same court are
+    # stored in cancelled_map keyed by (court_id, slot) and will render in a
+    # split sub-column alongside the active booking rather than being hidden.
     cancelled_bookings = Booking.query.filter_by(
         date=selected_date,
         is_cancelled=True
@@ -106,8 +109,9 @@ def calendar():
         end_total = b.end_time.hour * 60 + b.end_time.minute
         duration_slots = (end_total - start_total) // 30
         slot_key = f'{b.start_time.hour:02d}:{b.start_time.minute:02d}'
-        # Only add to cancelled_map if not already occupied by an active booking
-        if (b.court_id, slot_key) not in booking_map:
+        # Add to cancelled_map regardless of whether an active booking overlaps.
+        # The template handles the split-column rendering when both exist.
+        if (b.court_id, slot_key) not in cancelled_map:
             cancelled_map[(b.court_id, slot_key)] = {
                 'booking_id': b.id,
                 'member_name': f'{member.first_name} {member.last_name}',
@@ -325,6 +329,7 @@ def add_booking():
     start_total = start_time.hour * 60 + start_time.minute
     end_total = end_time.hour * 60 + end_time.minute
 
+    # Check active booking conflicts
     existing = Booking.query.filter_by(
         court_id=court_id,
         date=booking_date,
@@ -337,12 +342,44 @@ def add_booking():
         if b_start < end_total and b_end > start_total:
             return jsonify({'error': 'That court is already booked during that time.'}), 409
 
+    # Check block conflicts — but only reject if there is NOT a cancelled booking
+    # covering this slot on the same court. A cancellation on a blocked slot means
+    # the slot was previously occupied and is now free; the block should still be
+    # respected unless staff explicitly removed it, but a rebook after a cancel
+    # within a block is a legitimate workflow (e.g. member cancels, staff
+    # immediately rebooks same slot for someone else before the block is lifted).
     blocks = CourtBlock.query.filter_by(court_id=court_id, date=booking_date).all()
     for bl in blocks:
         bl_start = bl.start_time.hour * 60 + bl.start_time.minute
         bl_end = bl.end_time.hour * 60 + bl.end_time.minute
         if bl_start < end_total and bl_end > start_total:
-            return jsonify({'error': 'That court is blocked during that time.'}), 409
+            # Look for a cancelled booking that covers the requested window on
+            # this court — if one exists the slot was previously bookable and
+            # we allow the rebook to proceed despite the block.
+            covering_cancel = Booking.query.filter_by(
+                court_id=court_id,
+                date=booking_date,
+                is_cancelled=True
+            ).all()
+            slot_has_cancel = any(
+                (cb.start_time.hour * 60 + cb.start_time.minute) <= start_total and
+                (cb.end_time.hour * 60 + cb.end_time.minute) >= end_total
+                for cb in covering_cancel
+            )
+            if not slot_has_cancel:
+                return jsonify({'error': 'That court is blocked during that time.'}), 409
+
+    # Remove any cancelled booking that exactly matches court/date/start_time so
+    # the UniqueConstraint on (court_id, date, start_time) doesn't fire on insert.
+    duplicate_cancelled = Booking.query.filter_by(
+        court_id=court_id,
+        date=booking_date,
+        start_time=start_time,
+        is_cancelled=True
+    ).first()
+    if duplicate_cancelled:
+        db.session.delete(duplicate_cancelled)
+        db.session.flush()
 
     new_booking = Booking(
         court_id=court_id,
