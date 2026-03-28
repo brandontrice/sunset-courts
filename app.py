@@ -464,15 +464,10 @@ def add_booking():
             if not slot_has_cancel:
                 return jsonify({'error': 'That court is blocked during that time.'}), 409
 
-    duplicate_cancelled = Booking.query.filter_by(
-        court_id=court_id,
-        date=booking_date,
-        start_time=start_time,
-        is_cancelled=True
-    ).first()
-    if duplicate_cancelled:
-        db.session.delete(duplicate_cancelled)
-        db.session.flush()
+    # Do NOT delete cancelled bookings that share this slot — they are preserved
+    # as history and rendered alongside the new active booking in a split column
+    # on the calendar. The UniqueConstraint on (court_id, date, start_time) was
+    # already removed from the model, so the insert below will succeed cleanly.
 
     new_booking = Booking(
         court_id=court_id,
