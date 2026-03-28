@@ -4,6 +4,11 @@ import csv
 import os
 from datetime import datetime, date, timedelta, time
 
+# APScheduler for weekly auto-export
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import atexit
+
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sunset_courts.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -17,6 +22,102 @@ with app.app_context():
     seed_test_data()
     print('Database tables created successfully.')
 
+
+# ── Shared export logic ───────────────────────────────────────────────────────
+
+def run_export():
+    """Write a timestamped CSV backup. Called manually and by the scheduler."""
+    backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
+    os.makedirs(backup_folder, exist_ok=True)
+    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    filename = f'sunset_courts_backup_{timestamp}.csv'
+    filepath = os.path.join(backup_folder, filename)
+
+    with app.app_context():
+        with open(filepath, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+
+            writer.writerow(['MEMBERS'])
+            writer.writerow(['ID', 'Phone', 'First Name', 'Last Name', 'Email',
+                             'Join Date', 'Family Name', 'Is Active', 'Is Banned',
+                             'Ban Reason', 'Ban Date', 'Ban Lift Date', 'Role'])
+            for m in Member.query.all():
+                writer.writerow([m.id, m.phone, m.first_name, m.last_name, m.email,
+                                 m.join_date, m.family_name, m.is_active, m.is_banned,
+                                 m.ban_reason, m.ban_date, m.ban_lift_date, m.role])
+
+            writer.writerow([])
+
+            writer.writerow(['DUES'])
+            writer.writerow(['ID', 'Member ID', 'Amount', 'Date Paid', 'Notes', 'Status', 'Year'])
+            for d in Dues.query.all():
+                writer.writerow([d.id, d.member_id, d.amount, d.date_paid,
+                                 d.notes, d.status, d.year])
+
+            writer.writerow([])
+
+            writer.writerow(['COURTS'])
+            writer.writerow(['ID', 'Court Number', 'Is Active'])
+            for c in Court.query.all():
+                writer.writerow([c.id, c.court_number, c.is_active])
+
+            writer.writerow([])
+
+            writer.writerow(['COURT BLOCKS'])
+            writer.writerow(['ID', 'Court ID', 'Date', 'Start Time', 'End Time',
+                             'Reason', 'Block Type', 'Created By'])
+            for cb in CourtBlock.query.all():
+                writer.writerow([cb.id, cb.court_id, cb.date, cb.start_time, cb.end_time,
+                                 cb.reason, cb.block_type, cb.created_by])
+
+            writer.writerow([])
+
+            writer.writerow(['BOOKINGS'])
+            writer.writerow(['ID', 'Court ID', 'Member ID', 'Date', 'Start Time',
+                             'End Time', 'Has Guest', 'Is Cancelled', 'Created At'])
+            for b in Booking.query.all():
+                writer.writerow([b.id, b.court_id, b.member_id, b.date,
+                                 b.start_time, b.end_time, b.has_guest,
+                                 b.is_cancelled, b.created_at])
+
+            writer.writerow([])
+
+            writer.writerow(['GUESTS'])
+            writer.writerow(['ID', 'Booking ID', 'First Name', 'Last Name',
+                             'Phone', 'Booked By Member'])
+            for g in Guest.query.all():
+                writer.writerow([g.id, g.booking_id, g.first_name, g.last_name,
+                                 g.phone, g.booked_by_member])
+
+    print(f'[Scheduler] Backup written: {filename}')
+    return filename
+
+
+def next_sunday_11pm():
+    """Return the next Sunday at 23:00 local time."""
+    now = datetime.now()
+    days_until_sunday = (6 - now.weekday()) % 7
+    if days_until_sunday == 0 and now.hour >= 23:
+        days_until_sunday = 7
+    target = now + timedelta(days=days_until_sunday)
+    return target.replace(hour=23, minute=0, second=0, microsecond=0)
+
+
+# ── Scheduler setup ───────────────────────────────────────────────────────────
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    func=run_export,
+    trigger=CronTrigger(day_of_week='sun', hour=23, minute=0),
+    id='weekly_backup',
+    name='Weekly Sunday 11 PM backup',
+    replace_existing=True
+)
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown())
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -38,8 +139,6 @@ def index():
             'start': b.start_time.strftime('%I:%M %p'),
             'end': b.end_time.strftime('%I:%M %p'),
             'has_guest': b.has_guest,
-          # 'guest_name':b.guestname,
-          # 'guest_phone_number':b.guestphonenumber,
         })
 
     return render_template('index.html', bookings=bookings, today_display=today_display)
@@ -49,8 +148,20 @@ def index():
 def calendar():
     selected_date_str = request.args.get('date', date.today().isoformat())
     selected_date = date.fromisoformat(selected_date_str)
+
+    # ── Year guard: only show bookings for the current year ──────────────────
+    current_year = date.today().year
+    if selected_date.year != current_year:
+        # Clamp to Jan 1 or Dec 31 of current year depending on direction
+        if selected_date.year > current_year:
+            selected_date = date(current_year, 12, 31)
+        else:
+            selected_date = date(current_year, 1, 1)
+        selected_date_str = selected_date.isoformat()
+
     display_date = selected_date.strftime('%m-%d-%Y')
 
+    # Prev/next still navigate freely but will be clamped on load if out of year
     prev_date = (selected_date - timedelta(days=1)).isoformat()
     next_date = (selected_date + timedelta(days=1)).isoformat()
 
@@ -85,9 +196,6 @@ def calendar():
             'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
             'rowspan': duration_slots,
             'has_guest': b.has_guest,
-          # 'guestname': b.guestname,
-          # 'guest_phone_number':b.guestphonenumber,
-        
         }
         current = start_total
         while current < end_total:
@@ -96,11 +204,6 @@ def calendar():
             booked_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
             current += 30
 
-    # Cancelled bookings — always fetched; the toggle to show/hide is handled
-    # client-side in calendar.html so we don't need a separate route.
-    # Cancelled entries that overlap an active booking on the same court are
-    # stored in cancelled_map keyed by (court_id, slot) and will render in a
-    # split sub-column alongside the active booking rather than being hidden.
     cancelled_bookings = Booking.query.filter_by(
         date=selected_date,
         is_cancelled=True
@@ -114,8 +217,6 @@ def calendar():
         end_total = b.end_time.hour * 60 + b.end_time.minute
         duration_slots = (end_total - start_total) // 30
         slot_key = f'{b.start_time.hour:02d}:{b.start_time.minute:02d}'
-        # Add to cancelled_map regardless of whether an active booking overlaps.
-        # The template handles the split-column rendering when both exist.
         if (b.court_id, slot_key) not in cancelled_map:
             cancelled_map[(b.court_id, slot_key)] = {
                 'booking_id': b.id,
@@ -162,6 +263,7 @@ def calendar():
                            prev_date=prev_date,
                            next_date=next_date,
                            today=date.today().isoformat(),
+                           current_year=current_year,
                            time_slots=time_slots,
                            booking_map=booking_map,
                            booked_cells=booked_cells,
@@ -292,8 +394,6 @@ def move_booking(booking_id):
 
 @app.route('/bookings/cancel/<int:booking_id>', methods=['POST'])
 def cancel_booking(booking_id):
-    # Sets is_cancelled to True rather than deleting the record,
-    # preserving booking history and immediately freeing the time slot.
     booking = Booking.query.get_or_404(booking_id)
     redirect_date = booking.date.isoformat()
     booking.is_cancelled = True
@@ -334,7 +434,6 @@ def add_booking():
     start_total = start_time.hour * 60 + start_time.minute
     end_total = end_time.hour * 60 + end_time.minute
 
-    # Check active booking conflicts
     existing = Booking.query.filter_by(
         court_id=court_id,
         date=booking_date,
@@ -347,20 +446,11 @@ def add_booking():
         if b_start < end_total and b_end > start_total:
             return jsonify({'error': 'That court is already booked during that time.'}), 409
 
-    # Check block conflicts — but only reject if there is NOT a cancelled booking
-    # covering this slot on the same court. A cancellation on a blocked slot means
-    # the slot was previously occupied and is now free; the block should still be
-    # respected unless staff explicitly removed it, but a rebook after a cancel
-    # within a block is a legitimate workflow (e.g. member cancels, staff
-    # immediately rebooks same slot for someone else before the block is lifted).
     blocks = CourtBlock.query.filter_by(court_id=court_id, date=booking_date).all()
     for bl in blocks:
         bl_start = bl.start_time.hour * 60 + bl.start_time.minute
         bl_end = bl.end_time.hour * 60 + bl.end_time.minute
         if bl_start < end_total and bl_end > start_total:
-            # Look for a cancelled booking that covers the requested window on
-            # this court — if one exists the slot was previously bookable and
-            # we allow the rebook to proceed despite the block.
             covering_cancel = Booking.query.filter_by(
                 court_id=court_id,
                 date=booking_date,
@@ -374,8 +464,6 @@ def add_booking():
             if not slot_has_cancel:
                 return jsonify({'error': 'That court is blocked during that time.'}), 409
 
-    # Remove any cancelled booking that exactly matches court/date/start_time so
-    # the UniqueConstraint on (court_id, date, start_time) doesn't fire on insert.
     duplicate_cancelled = Booking.query.filter_by(
         court_id=court_id,
         date=booking_date,
@@ -404,73 +492,25 @@ def add_booking():
 def export():
     backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
     os.makedirs(backup_folder, exist_ok=True)
-    files = sorted(os.listdir(backup_folder), reverse=True)
-    return render_template('export.html', backups=files)
+    all_files = sorted(
+        [f for f in os.listdir(backup_folder) if f.endswith('.csv')],
+        reverse=True
+    )
+
+    latest = all_files[0] if all_files else None
+    previous = all_files[1:] if len(all_files) > 1 else []
+    next_backup = next_sunday_11pm()
+    next_backup_display = next_backup.strftime('%A, %B %d, %Y at %I:%M %p')
+
+    return render_template('export.html',
+                           latest=latest,
+                           previous=previous,
+                           next_backup_display=next_backup_display)
 
 
 @app.route('/export/download')
 def export_download():
-    backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
-    os.makedirs(backup_folder, exist_ok=True)
-    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    filename = f'sunset_courts_backup_{timestamp}.csv'
-    filepath = os.path.join(backup_folder, filename)
-
-    with open(filepath, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-
-        writer.writerow(['MEMBERS'])
-        writer.writerow(['ID', 'Phone', 'First Name', 'Last Name', 'Email',
-                         'Join Date', 'Family Name', 'Is Active', 'Is Banned',
-                         'Ban Reason', 'Ban Date', 'Ban Lift Date', 'Role'])
-        for m in Member.query.all():
-            writer.writerow([m.id, m.phone, m.first_name, m.last_name, m.email,
-                             m.join_date, m.family_name, m.is_active, m.is_banned,
-                             m.ban_reason, m.ban_date, m.ban_lift_date, m.role])
-
-        writer.writerow([])
-
-        writer.writerow(['DUES'])
-        writer.writerow(['ID', 'Member ID', 'Amount', 'Date Paid', 'Notes', 'Status', 'Year'])
-        for d in Dues.query.all():
-            writer.writerow([d.id, d.member_id, d.amount, d.date_paid,
-                             d.notes, d.status, d.year])
-
-        writer.writerow([])
-
-        writer.writerow(['COURTS'])
-        writer.writerow(['ID', 'Court Number', 'Is Active'])
-        for c in Court.query.all():
-            writer.writerow([c.id, c.court_number, c.is_active])
-
-        writer.writerow([])
-
-        writer.writerow(['COURT BLOCKS'])
-        writer.writerow(['ID', 'Court ID', 'Date', 'Start Time', 'End Time',
-                         'Reason', 'Block Type', 'Created By'])
-        for cb in CourtBlock.query.all():
-            writer.writerow([cb.id, cb.court_id, cb.date, cb.start_time, cb.end_time,
-                             cb.reason, cb.block_type, cb.created_by])
-
-        writer.writerow([])
-
-        writer.writerow(['BOOKINGS'])
-        writer.writerow(['ID', 'Court ID', 'Member ID', 'Date', 'Start Time',
-                         'End Time', 'Has Guest', 'Is Cancelled', 'Created At'])
-        for b in Booking.query.all():
-            writer.writerow([b.id, b.court_id, b.member_id, b.date,
-                             b.start_time, b.end_time, b.has_guest,
-                             b.is_cancelled, b.created_at])
-
-        writer.writerow([])
-
-        writer.writerow(['GUESTS'])
-        writer.writerow(['ID', 'Booking ID', 'First Name', 'Last Name',
-                         'Phone', 'Booked By Member'])
-        for g in Guest.query.all():
-            writer.writerow([g.id, g.booking_id, g.first_name, g.last_name,
-                             g.phone, g.booked_by_member])
-
+    run_export()
     return redirect(url_for('export'))
 
 
@@ -484,6 +524,25 @@ def serve_backup(filename):
         for row in reader:
             rows.append(row)
     return render_template('view_backup.html', filename=filename, rows=rows)
+
+
+@app.route('/export/clear', methods=['POST'])
+def clear_backups():
+    """Delete all backups except the most recent one."""
+    backup_folder = os.path.join(os.path.dirname(__file__), 'backups')
+    all_files = sorted(
+        [f for f in os.listdir(backup_folder) if f.endswith('.csv')],
+        reverse=True
+    )
+    # Keep the latest, delete the rest
+    deleted = 0
+    for f in all_files[1:]:
+        try:
+            os.remove(os.path.join(backup_folder, f))
+            deleted += 1
+        except OSError:
+            pass
+    return redirect(url_for('export'))
 
 
 if __name__ == '__main__':
