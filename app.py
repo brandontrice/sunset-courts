@@ -426,10 +426,17 @@ def add_booking():
 
     member_id = data.get('member_id')
     court_id = int(data.get('court_id'))
-    booking_date = date.fromisoformat(data.get('date'))
     start_time = datetime.strptime(data.get('start_time'), '%H:%M').time()
     end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
     has_guest = bool(data.get('has_guest', False))
+    #Restritics bookings to this year
+    booking_date = date.fromisoformat(data.get('date'))
+        current_year = date.today().year
+
+        if booking_date.year != current_year:
+            return jsonify({
+                'error': f'Bookings are only allowed for {current_year}.'
+            }), 400
 
     start_total = start_time.hour * 60 + start_time.minute
     end_total = end_time.hour * 60 + end_time.minute
