@@ -196,6 +196,23 @@
     }
   }
 
+  function addGuest() {
+  const container = document.getElementById("guestContainer");
+
+  const div = document.createElement("div");
+  div.classList.add("guest");
+
+  div.innerHTML = `
+    <input type="text" placeholder="First Name" class="guestFirst">
+    <input type="text" placeholder="Last Name" class="guestLast">
+    <input type="text" placeholder="Phone Number" class="guestPhone">
+    <button type="button" onclick="this.parentElement.remove()">❌</button>
+    <br><br>
+  `;
+
+  container.appendChild(div);
+}
+  
   function ShowGuest() {
     const checkbox = document.getElementById('hasGuest');
     document.getElementById('GuestInfo').style.display = checkbox.checked ? 'block' : 'none';
