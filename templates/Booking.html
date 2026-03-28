@@ -17,7 +17,7 @@
   <label>Date:</label>
   <input type="date" id="date" min="2026-01-01" max="2026-12-31">
 
-  <!-- Court dropdown is populated by Flask passing the courts list from the /booking route -->
+  <!-- Court dropdown populated by Flask from the /booking route -->
   <label>Court:</label>
   <select id="courtId">
     {% for court in courts %}
@@ -25,14 +25,80 @@
     {% endfor %}
   </select>
 
-  <!-- Start and end time dropdowns are built in JS at 30-minute increments only.
-       Using a select instead of type="time" because browsers don't reliably
-       enforce step="1800" — users can still type arbitrary minutes in some browsers. -->
+  <!-- Both time selects are fully hardcoded here in the template.
+       Only :00 and :30 values exist as options — there is no way to pick anything else.
+       Start runs 06:00–21:30. End runs 06:30–22:00. -->
   <label>Start Time:</label>
-  <select id="startTime" onchange="updateEndTimes()"></select>
+  <select id="startTime">
+    <option value="06:00">06:00</option>
+    <option value="06:30">06:30</option>
+    <option value="07:00">07:00</option>
+    <option value="07:30">07:30</option>
+    <option value="08:00">08:00</option>
+    <option value="08:30">08:30</option>
+    <option value="09:00">09:00</option>
+    <option value="09:30">09:30</option>
+    <option value="10:00">10:00</option>
+    <option value="10:30">10:30</option>
+    <option value="11:00">11:00</option>
+    <option value="11:30">11:30</option>
+    <option value="12:00">12:00</option>
+    <option value="12:30">12:30</option>
+    <option value="13:00">13:00</option>
+    <option value="13:30">13:30</option>
+    <option value="14:00">14:00</option>
+    <option value="14:30">14:30</option>
+    <option value="15:00">15:00</option>
+    <option value="15:30">15:30</option>
+    <option value="16:00">16:00</option>
+    <option value="16:30">16:30</option>
+    <option value="17:00">17:00</option>
+    <option value="17:30">17:30</option>
+    <option value="18:00">18:00</option>
+    <option value="18:30">18:30</option>
+    <option value="19:00">19:00</option>
+    <option value="19:30">19:30</option>
+    <option value="20:00">20:00</option>
+    <option value="20:30">20:30</option>
+    <option value="21:00">21:00</option>
+    <option value="21:30">21:30</option>
+  </select>
 
   <label>End Time:</label>
-  <select id="endTime"></select>
+  <select id="endTime">
+    <option value="06:30">06:30</option>
+    <option value="07:00">07:00</option>
+    <option value="07:30">07:30</option>
+    <option value="08:00">08:00</option>
+    <option value="08:30">08:30</option>
+    <option value="09:00">09:00</option>
+    <option value="09:30">09:30</option>
+    <option value="10:00">10:00</option>
+    <option value="10:30">10:30</option>
+    <option value="11:00">11:00</option>
+    <option value="11:30">11:30</option>
+    <option value="12:00">12:00</option>
+    <option value="12:30">12:30</option>
+    <option value="13:00">13:00</option>
+    <option value="13:30">13:30</option>
+    <option value="14:00">14:00</option>
+    <option value="14:30">14:30</option>
+    <option value="15:00">15:00</option>
+    <option value="15:30">15:30</option>
+    <option value="16:00">16:00</option>
+    <option value="16:30">16:30</option>
+    <option value="17:00">17:00</option>
+    <option value="17:30">17:30</option>
+    <option value="18:00">18:00</option>
+    <option value="18:30">18:30</option>
+    <option value="19:00">19:00</option>
+    <option value="19:30">19:30</option>
+    <option value="20:00">20:00</option>
+    <option value="20:30">20:30</option>
+    <option value="21:00">21:00</option>
+    <option value="21:30">21:30</option>
+    <option value="22:00">22:00</option>
+  </select>
 
   <!-- Optional guest flag — maps to has_guest on the Booking model -->
   <label>
@@ -51,98 +117,53 @@
 
   <br><br>
   <button onclick="scheduleBooking()">Book Court</button>
-  <!-- Booking result message displayed here instead of using alert() -->
   <p id="bookingMessage"></p>
 </div>
 
 <script>
-  // Stores the resolved member ID after a successful lookup
   let resolvedMemberId = null;
 
-  // Build the list of 30-minute time slots from 06:00 to 22:00 (matches calendar)
-  function buildTimeSlots() {
-    const slots = [];
-    for (let h = 6; h < 22; h++) {
-      slots.push(`${String(h).padStart(2,'0')}:00`);
-      slots.push(`${String(h).padStart(2,'0')}:30`);
-    }
-    slots.push('22:00');
-    return slots;
-  }
-
-  const allSlots = buildTimeSlots();
-
-  function populateStartTimes() {
-    const startSel = document.getElementById('startTime');
-    startSel.innerHTML = '';
-    // Exclude 22:00 as a start time — a booking must end by 22:00, not start there
-    allSlots.slice(0, -1).forEach(slot => {
-      const opt = document.createElement('option');
-      opt.value = slot;
-      opt.textContent = slot;
-      startSel.appendChild(opt);
-    });
-    updateEndTimes();
-  }
-
-  // End time dropdown only shows slots after the selected start time
-  function updateEndTimes() {
-    const startVal = document.getElementById('startTime').value;
-    const endSel   = document.getElementById('endTime');
-    const startIdx = allSlots.indexOf(startVal);
-    endSel.innerHTML = '';
-    // Offer only slots ahead of start (minimum 30-minute booking enforced here)
-    allSlots.slice(startIdx + 1).forEach(slot => {
-      const opt = document.createElement('option');
-      opt.value = slot;
-      opt.textContent = slot;
-      endSel.appendChild(opt);
-    });
-  }
-
-  populateStartTimes();
-
   async function lookupMember() {
-    const id = document.getElementById("memberId").value.trim();
+    const id = document.getElementById('memberId').value.trim();
     if (!id) return;
 
     const res  = await fetch(`/member/${id}`);
     const data = await res.json();
 
     if (data.error) {
-      document.getElementById("memberInfo").style.display = "none";
+      document.getElementById('memberInfo').style.display = 'none';
       alert(data.error);
       return;
     }
 
     resolvedMemberId = data.id;
-    document.getElementById("name").textContent  = data.name;
-    document.getElementById("email").textContent = data.email || "N/A";
-    document.getElementById("memberInfo").style.display = "block";
+    document.getElementById('name').textContent  = data.name;
+    document.getElementById('email').textContent = data.email || 'N/A';
+    document.getElementById('memberInfo').style.display = 'block';
   }
 
   async function scheduleBooking() {
-    const courtId   = document.getElementById("courtId").value;
-    const date      = document.getElementById("date").value;
-    const startTime = document.getElementById("startTime").value;
-    const endTime   = document.getElementById("endTime").value;
-    const hasGuest  = document.getElementById("hasGuest").checked;
-    const msgEl     = document.getElementById("bookingMessage");
+    const courtId   = document.getElementById('courtId').value;
+    const date      = document.getElementById('date').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime   = document.getElementById('endTime').value;
+    const hasGuest  = document.getElementById('hasGuest').checked;
+    const msgEl     = document.getElementById('bookingMessage');
 
-    if (!date || !startTime || !endTime) {
-      msgEl.textContent = "Please fill in all fields.";
+    if (!date) {
+      msgEl.textContent = 'Please select a date.';
       return;
     }
 
-    // Safeguard — shouldn't be reachable with select dropdowns but kept defensively
     if (startTime >= endTime) {
-      msgEl.textContent = "End time must be after start time.";
+      msgEl.style.color = 'red';
+      msgEl.textContent = 'End time must be after start time.';
       return;
     }
 
-    const res = await fetch("/bookings/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch('/bookings/add', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         member_id:  resolvedMemberId,
         court_id:   courtId,
@@ -156,18 +177,17 @@
     const data = await res.json();
 
     if (data.success) {
-      msgEl.style.color = "green";
-      msgEl.textContent = "Booking confirmed!";
+      msgEl.style.color = 'green';
+      msgEl.textContent = 'Booking confirmed!';
     } else {
-      msgEl.style.color = "red";
-      msgEl.textContent = data.error || "Booking failed.";
+      msgEl.style.color = 'red';
+      msgEl.textContent = data.error || 'Booking failed.';
     }
   }
 
   function ShowGuest() {
-    const section  = document.getElementById("GuestInfo");
-    const checkbox = document.getElementById("hasGuest");
-    section.style.display = checkbox.checked ? "block" : "none";
+    const checkbox = document.getElementById('hasGuest');
+    document.getElementById('GuestInfo').style.display = checkbox.checked ? 'block' : 'none';
   }
 </script>
 
