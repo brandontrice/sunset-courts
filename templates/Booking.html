@@ -37,23 +37,21 @@
     <input type="checkbox" id="hasGuest" onclick="ShowGuest()"> Bringing a guest?
   </label>
 
-  <!-- Guest info input section is hidden until hasGuest is checked -->
-  <div id="GuestInfo" style="display:none;"></div>
-  <div id="GuestInfo">
+  <!-- Guest info section — only one div with this ID, shown/hidden by ShowGuest() -->
+  <div id="GuestInfo" style="display:none;">
     <h3>Guest Info</h3>
-    <label> Guest Name</label>
-    <input type="Name" id="GuestName">
+    <label>Guest Name</label>
+    <input type="text" id="GuestName">
     <br><br>
-    <label> Guest Phone Number</label>
-    <input type="PhoneNumber" id="GuestPhoneNumber">
-    <div id="GuestInfo" style="display:none;"></div>
-</div>
- 
+    <label>Guest Phone Number</label>
+    <input type="text" id="GuestPhoneNumber">
+  </div>
+
   <br><br>
   <button onclick="scheduleBooking()">Book Court</button>
   <!-- Booking result message displayed here instead of using alert() -->
   <p id="bookingMessage"></p>
-
+</div>
 
 <script>
   // Stores the resolved member ID after a successful lookup
@@ -84,12 +82,12 @@
   }
 
   async function scheduleBooking() {
-    const courtId = document.getElementById("courtId").value;
-    const date = document.getElementById("date").value;
+    const courtId  = document.getElementById("courtId").value;
+    const date     = document.getElementById("date").value;
     const startTime = document.getElementById("startTime").value;
-    const endTime = document.getElementById("endTime").value;
-    const hasGuest = document.getElementById("hasGuest").checked;
-    const msgEl = document.getElementById("bookingMessage");
+    const endTime   = document.getElementById("endTime").value;
+    const hasGuest  = document.getElementById("hasGuest").checked;
+    const msgEl     = document.getElementById("bookingMessage");
 
     // Basic client-side validation before hitting the server
     if (!date || !startTime || !endTime) {
@@ -108,12 +106,12 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        member_id: resolvedMemberId,
-        court_id: courtId,
-        date: date,
+        member_id:  resolvedMemberId,
+        court_id:   courtId,
+        date:       date,
         start_time: startTime,
-        end_time: endTime,
-        has_guest: hasGuest
+        end_time:   endTime,
+        has_guest:  hasGuest
       })
     });
 
@@ -128,18 +126,13 @@
       msgEl.textContent = data.error || "Booking failed.";
     }
   }
-   // Hides the Guest Section and show it when the guest button is clicked
-   function ShowGuest() {
-    const section = document.getElementById("GuestInfo");
+
+  // Shows or hides the guest section based on the checkbox state
+  function ShowGuest() {
+    const section  = document.getElementById("GuestInfo");
     const checkbox = document.getElementById("hasGuest");
-
-  if (checkbox.checked) {
-    section.style.display = "block";
-  } else {
-    section.style.display = "none";
+    section.style.display = checkbox.checked ? "block" : "none";
   }
-}
-
 </script>
 
 {% endblock %}
