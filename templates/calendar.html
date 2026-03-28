@@ -80,12 +80,23 @@
                             {% set booking = booking_map[key] %}
                             <td rowspan="{{ booking.rowspan }}"
                                 style="background-color: #d4edda; vertical-align: middle;
-                                       font-size: 0.85em; padding: 4px;">
+                                       font-size: 0.85em; padding: 4px; position: relative;"
+                                class="booked-cell">
                                 <strong>{{ booking.member_name }}</strong><br>
                                 {{ booking.start }} – {{ booking.end }}
                                 {% if booking.has_guest %}
                                     <br><span style="font-size: 0.75em; color: #555;">+ Guest</span>
                                 {% endif %}
+                                <div class="cancel-hover-btn" style="display:none; margin-top: 6px;">
+                                    <form method="POST" action="/bookings/cancel/{{ booking.booking_id }}"
+                                          style="margin:0;"
+                                          onsubmit="return confirm('Cancel this booking for {{ booking.member_name }}?')">
+                                        <button type="submit" class="btn btn-danger btn-sm"
+                                                style="font-size: 0.75em; padding: 2px 6px;">
+                                            Cancel Booking
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         {% elif key in booked_cells %}
                             {# Covered by booking rowspan — skip #}
@@ -220,6 +231,16 @@ document.querySelectorAll('.blocked-cell').forEach(cell => {
     });
     cell.addEventListener('mouseleave', () => {
         cell.querySelector('.block-hover-btn').style.display = 'none';
+    });
+});
+
+// Hover show/hide for booked cells
+document.querySelectorAll('.booked-cell').forEach(cell => {
+    cell.addEventListener('mouseenter', () => {
+        cell.querySelector('.cancel-hover-btn').style.display = 'block';
+    });
+    cell.addEventListener('mouseleave', () => {
+        cell.querySelector('.cancel-hover-btn').style.display = 'none';
     });
 });
 
