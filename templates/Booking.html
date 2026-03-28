@@ -143,12 +143,14 @@
   }
 
   async function scheduleBooking() {
-    const courtId   = document.getElementById('courtId').value;
-    const date      = document.getElementById('date').value;
-    const startTime = document.getElementById('startTime').value;
-    const endTime   = document.getElementById('endTime').value;
-    const hasGuest  = document.getElementById('hasGuest').checked;
-    const msgEl     = document.getElementById('bookingMessage');
+    const courtId          = document.getElementById('courtId').value;
+    const date             = document.getElementById('date').value;
+    const startTime        = document.getElementById('startTime').value;
+    const endTime          = document.getElementById('endTime').value;
+    const hasGuest         = document.getElementById('hasGuest').checked;
+    const guestname        = document.getElementByID('guestname').value;
+    const guestphonenumber = document.getElementByID('guestphonenumber').value;
+    const msgEl            = document.getElementById('bookingMessage');
 
     if (!date) {
       msgEl.textContent = 'Please select a date.';
@@ -165,12 +167,14 @@
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        member_id:  resolvedMemberId,
-        court_id:   courtId,
-        date:       date,
-        start_time: startTime,
-        end_time:   endTime,
-        has_guest:  hasGuest
+        member_id:          resolvedMemberId,
+        court_id:           courtId,
+        date:               date,
+        start_time:         startTime,
+        end_time:           endTime,
+        has_guest:          hasGuest,
+        Guest_Name:         guestname,
+        Guest_Phone_Number: guestphonenumber,
       })
     });
 
