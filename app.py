@@ -38,8 +38,8 @@ def index():
             'start': b.start_time.strftime('%I:%M %p'),
             'end': b.end_time.strftime('%I:%M %p'),
             'has_guest': b.has_guest,
-            'guest_name':b.guestname,
-            'guest_phone_number':b.guestphonenumber,
+          # 'guest_name':b.guestname,
+          # 'guest_phone_number':b.guestphonenumber,
         })
 
     return render_template('index.html', bookings=bookings, today_display=today_display)
@@ -85,8 +85,8 @@ def calendar():
             'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
             'rowspan': duration_slots,
             'has_guest': b.has_guest,
-            'guestname': b.guestname,
-            'guest_phone_number':b.guestphonenumber,
+          # 'guestname': b.guestname,
+          # 'guest_phone_number':b.guestphonenumber,
         
         }
         current = start_total
