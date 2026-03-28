@@ -15,7 +15,7 @@
 
   <h3>Schedule a Court</h3>
   <label>Date:</label>
-  <input type="date" id="date">
+  <input type="date" id="date" min="2026-01-01" max="2026-12-31">
 
   <!-- Court dropdown is populated by Flask passing the courts list from the /booking route -->
   <label>Court:</label>
@@ -34,20 +34,26 @@
 
   <!-- Optional guest flag — maps to has_guest on the Booking model -->
   <label>
-    <input type="checkbox" id="hasGuest"> Bringing a guest?
+    <input type="checkbox" id="hasGuest" onclick="ShowGuest()"> Bringing a guest?
   </label>
 
   <!-- Guest info input section is hidden until hasGuest is checked -->
-  <div id="hasGuest" style="display:none;">
+  <div id="GuestInfo" style="display:none;"></div>
+  <div id="GuestInfo">
     <h3>Guest Info</h3>
+    <label> Guest Name</label>
     <input type="Name" id="GuestName">
+    <br><br>
+    <label> Guest Phone Number</label>
     <input type="PhoneNumber" id="GuestPhoneNumber">
-  
+    <div id="GuestInfo" style="display:none;"></div>
+</div>
+ 
   <br><br>
   <button onclick="scheduleBooking()">Book Court</button>
   <!-- Booking result message displayed here instead of using alert() -->
   <p id="bookingMessage"></p>
-</div>
+
 
 <script>
   // Stores the resolved member ID after a successful lookup
@@ -122,6 +128,18 @@
       msgEl.textContent = data.error || "Booking failed.";
     }
   }
+   // Hides the Guest Section and show it when the guest button is clicked
+   function ShowGuest() {
+    const section = document.getElementById("GuestInfo");
+    const checkbox = document.getElementById("hasGuest");
+
+  if (checkbox.checked) {
+    section.style.display = "block";
+  } else {
+    section.style.display = "none";
+  }
+}
+
 </script>
 
 {% endblock %}
