@@ -77,6 +77,7 @@ def calendar():
         duration_slots = (end_total - start_total) // 30
         slot_key = f'{b.start_time.hour:02d}:{b.start_time.minute:02d}'
         booking_map[(b.court_id, slot_key)] = {
+            'booking_id': b.id,
             'member_name': f'{member.first_name} {member.last_name}',
             'start': slot_key,
             'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
@@ -250,6 +251,17 @@ def move_booking(booking_id):
     return redirect(url_for('calendar', date=redirect_date))
 
 
+@app.route('/bookings/cancel/<int:booking_id>', methods=['POST'])
+def cancel_booking(booking_id):
+    # Sets is_cancelled to True rather than deleting the record,
+    # preserving booking history and immediately freeing the time slot.
+    booking = Booking.query.get_or_404(booking_id)
+    redirect_date = booking.date.isoformat()
+    booking.is_cancelled = True
+    db.session.commit()
+    return redirect(url_for('calendar', date=redirect_date))
+
+
 @app.route('/bookings')
 def booking():
     # Pass all active courts to the template to populate the court dropdown
@@ -319,16 +331,6 @@ def add_booking():
 
     return jsonify({'success': True, 'booking_id': new_booking.id})
 
-@app.route("/bookings/delete/<int:booking_id>", methods=["DELETE"])
-def delete_booking(booking_id):
-    conn = sqlite3.connect("bookings.db")
-    c = conn.cursor()
-
-    c.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
-    conn.commit()
-    conn.close()
-
-    return {"success": True}
 
 @app.route('/export')
 def export():
