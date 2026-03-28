@@ -23,7 +23,6 @@ def index():
     today = date.today()
     today_display = today.strftime('%B %d, %Y')
 
-    # Fetch today's bookings and build a display-friendly list
     raw_bookings = Booking.query.filter_by(
         date=today,
         is_cancelled=False
@@ -63,6 +62,7 @@ def calendar():
             minute = 0
             hour += 1
 
+    # Active bookings
     bookings = Booking.query.filter_by(
         date=selected_date,
         is_cancelled=False
@@ -90,6 +90,38 @@ def calendar():
             m = current % 60
             booked_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
             current += 30
+
+    # Cancelled bookings — fetched separately so they display on the calendar
+    # with a distinct red/cancelled style rather than being hidden entirely
+    cancelled_bookings = Booking.query.filter_by(
+        date=selected_date,
+        is_cancelled=True
+    ).all()
+
+    cancelled_map = {}
+    cancelled_cells = set()
+    for b in cancelled_bookings:
+        member = Member.query.get(b.member_id)
+        start_total = b.start_time.hour * 60 + b.start_time.minute
+        end_total = b.end_time.hour * 60 + b.end_time.minute
+        duration_slots = (end_total - start_total) // 30
+        slot_key = f'{b.start_time.hour:02d}:{b.start_time.minute:02d}'
+        # Only add to cancelled_map if not already occupied by an active booking
+        if (b.court_id, slot_key) not in booking_map:
+            cancelled_map[(b.court_id, slot_key)] = {
+                'booking_id': b.id,
+                'member_name': f'{member.first_name} {member.last_name}',
+                'start': slot_key,
+                'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
+                'rowspan': duration_slots,
+                'has_guest': b.has_guest
+            }
+            current = start_total
+            while current < end_total:
+                h = current // 60
+                m = current % 60
+                cancelled_cells.add((b.court_id, f'{h:02d}:{m:02d}'))
+                current += 30
 
     blocks = CourtBlock.query.filter_by(date=selected_date).all()
 
@@ -124,6 +156,8 @@ def calendar():
                            time_slots=time_slots,
                            booking_map=booking_map,
                            booked_cells=booked_cells,
+                           cancelled_map=cancelled_map,
+                           cancelled_cells=cancelled_cells,
                            block_map=block_map,
                            blocked_cells=blocked_cells)
 
@@ -138,7 +172,6 @@ def check_block_conflicts():
     start_total = start_time.hour * 60 + start_time.minute
     end_total = end_time.hour * 60 + end_time.minute
 
-    # Find conflicting bookings
     existing_bookings = Booking.query.filter_by(
         court_id=court_id,
         date=block_date,
@@ -151,13 +184,11 @@ def check_block_conflicts():
         b_end = b.end_time.hour * 60 + b.end_time.minute
         if b_start < end_total and b_end > start_total:
             member = Member.query.get(b.member_id)
-            # Find available courts for this booking's time slot
             all_courts = Court.query.filter_by(is_active=True).all()
             available_courts = []
             for c in all_courts:
                 if c.id == court_id:
                     continue
-                # Check no booking exists
                 overlap = Booking.query.filter_by(
                     court_id=c.id,
                     date=block_date,
@@ -170,7 +201,6 @@ def check_block_conflicts():
                     if ob_start < b_end and ob_end > b_start:
                         court_free = False
                         break
-                # Check no block exists
                 block_overlap = CourtBlock.query.filter_by(
                     court_id=c.id,
                     date=block_date
@@ -264,14 +294,12 @@ def cancel_booking(booking_id):
 
 @app.route('/bookings')
 def booking():
-    # Pass all active courts to the template to populate the court dropdown
     courts = Court.query.filter_by(is_active=True).all()
     return render_template('booking.html', courts=courts)
 
 
 @app.route('/member/<int:member_id>')
 def get_member(member_id):
-    # Lookup member by ID and validate they are active and not banned
     member = Member.query.get(member_id)
     if not member or not member.is_active or member.is_banned:
         return jsonify({'error': 'Member not found or not eligible'}), 404
@@ -297,7 +325,6 @@ def add_booking():
     start_total = start_time.hour * 60 + start_time.minute
     end_total = end_time.hour * 60 + end_time.minute
 
-    # Check for conflicts with existing bookings on the same court and date
     existing = Booking.query.filter_by(
         court_id=court_id,
         date=booking_date,
@@ -310,7 +337,6 @@ def add_booking():
         if b_start < end_total and b_end > start_total:
             return jsonify({'error': 'That court is already booked during that time.'}), 409
 
-    # Check for conflicts with any court blocks on the same court and date
     blocks = CourtBlock.query.filter_by(court_id=court_id, date=booking_date).all()
     for bl in blocks:
         bl_start = bl.start_time.hour * 60 + bl.start_time.minute
