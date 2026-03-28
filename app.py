@@ -38,6 +38,8 @@ def index():
             'start': b.start_time.strftime('%I:%M %p'),
             'end': b.end_time.strftime('%I:%M %p'),
             'has_guest': b.has_guest
+            'guest_name':b.guestname
+            'guest_phone_number':b.guestphonenumber
         })
 
     return render_template('index.html', bookings=bookings, today_display=today_display)
