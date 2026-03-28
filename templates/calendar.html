@@ -21,6 +21,10 @@
     </form>
 
     <a href="/calendar?date={{ today }}" class="btn btn-outline-secondary btn-sm">Today</a>
+
+    {# Toggle button — state is tracked in JS; label swaps on each click #}
+    <button id="toggleCancelBtn" class="btn btn-outline-secondary btn-sm"
+            onclick="toggleCancelled()">Hide Cancelled</button>
 </div>
 
 <!-- Legend -->
@@ -36,6 +40,9 @@
     </span>
     <span style="display:flex; align-items:center; gap:6px;">
         <span style="width:16px; height:16px; background:#f9f9f9; border:1px solid #ccc; display:inline-block; border-radius:3px;"></span> Available
+    </span>
+    <span style="display:flex; align-items:center; gap:6px;">
+        <span style="width:16px; height:16px; background:linear-gradient(90deg,#d4edda 50%,#f8d7da 50%); border:1px solid #ccc; display:inline-block; border-radius:3px;"></span> Active + Cancelled (same slot)
     </span>
 </div>
 
@@ -56,45 +63,157 @@
                     {% for i in range(1, 7) %}
                         {% set key = (i, slot) %}
 
+                        {# ── BLOCK ── #}
                         {% if key in block_map %}
                             {% set block = block_map[key] %}
-                            <td rowspan="{{ block.rowspan }}"
-                                style="background-color: #cce5ff;
-                                       background-image: repeating-linear-gradient(
-                                           45deg,
-                                           rgba(0,64,133,0.08) 0px,
-                                           rgba(0,64,133,0.08) 4px,
-                                           transparent 4px,
-                                           transparent 12px
-                                       );
-                                       vertical-align: top;
-                                       font-size: 0.85em;
-                                       padding: 6px 4px;
-                                       position: relative;
-                                       border: 2px solid #004085 !important;"
-                                class="blocked-cell"
-                                data-block-id="{{ block.block_id }}">
-                                <div style="font-weight: bold; color: #004085; font-size: 0.95em; margin-bottom: 2px;">
-                                    🔵 BLOCKED
-                                </div>
-                                <strong>{{ block.block_type }}</strong><br>
-                                {{ block.start }} – {{ block.end }}<br>
-                                <span style="font-size: 0.75em; color: #333;">{{ block.reason }}</span>
-                                <div class="block-hover-btn" style="display:none; margin-top: 6px;">
-                                    <form method="POST" action="/blocks/remove/{{ block.block_id }}"
-                                          style="margin:0;"
-                                          onsubmit="return confirm('Remove this block?')">
-                                        <button type="submit" class="btn btn-primary btn-sm"
-                                                style="font-size: 0.75em; padding: 2px 6px;">
-                                            Remove Block
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+                            {# Check whether a cancelled booking also sits on this slot.
+                               If so, split the cell: left half = block, right half = cancelled. #}
+                            {% if key in cancelled_map %}
+                                {% set cancelled = cancelled_map[key] %}
+                                <td rowspan="{{ block.rowspan }}"
+                                    style="padding: 0; vertical-align: top; position: relative;
+                                           border: 2px solid #004085 !important;"
+                                    class="blocked-cell split-cell"
+                                    data-block-id="{{ block.block_id }}">
+                                    <div style="display: flex; height: 100%; min-height: 60px;">
+                                        {# Left sub-column: block #}
+                                        <div style="flex: 1; background:#cce5ff;
+                                                    background-image: repeating-linear-gradient(
+                                                        45deg,
+                                                        rgba(0,64,133,0.08) 0px,
+                                                        rgba(0,64,133,0.08) 4px,
+                                                        transparent 4px,
+                                                        transparent 12px);
+                                                    padding: 4px 3px; font-size: 0.8em;
+                                                    border-right: 1px solid #004085;">
+                                            <div style="font-weight:bold; color:#004085;">🔵 BLOCKED</div>
+                                            <strong>{{ block.block_type }}</strong><br>
+                                            {{ block.start }}–{{ block.end }}<br>
+                                            <span style="font-size:0.75em; color:#333;">{{ block.reason }}</span>
+                                            <div class="block-hover-btn" style="display:none; margin-top:4px;">
+                                                <form method="POST" action="/blocks/remove/{{ block.block_id }}"
+                                                      style="margin:0;"
+                                                      onsubmit="return confirm('Remove this block?')">
+                                                    <button type="submit" class="btn btn-primary btn-sm"
+                                                            style="font-size:0.7em; padding:2px 4px;">
+                                                        Remove Block
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        {# Right sub-column: cancelled booking — hidden when toggle is off #}
+                                        <div class="cancelled-content"
+                                             style="flex: 1; background:#f8d7da;
+                                                    background-image: repeating-linear-gradient(
+                                                        45deg,
+                                                        rgba(220,53,69,0.1) 0px,
+                                                        rgba(220,53,69,0.1) 4px,
+                                                        transparent 4px,
+                                                        transparent 12px);
+                                                    padding: 4px 3px; font-size: 0.8em;">
+                                            <div style="font-weight:bold; color:#dc3545;">❌ CANCELLED</div>
+                                            <span style="color:#721c24;">{{ cancelled.member_name }}</span><br>
+                                            <span style="font-size:0.75em; color:#888; text-decoration:line-through;">
+                                                {{ cancelled.start }}–{{ cancelled.end }}
+                                            </span>
+                                            {% if cancelled.has_guest %}
+                                                <br><span style="font-size:0.7em; color:#888;">+ Guest</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                            {% else %}
+                                {# Block only — no cancelled booking underneath #}
+                                <td rowspan="{{ block.rowspan }}"
+                                    style="background-color: #cce5ff;
+                                           background-image: repeating-linear-gradient(
+                                               45deg,
+                                               rgba(0,64,133,0.08) 0px,
+                                               rgba(0,64,133,0.08) 4px,
+                                               transparent 4px,
+                                               transparent 12px);
+                                           vertical-align: top;
+                                           font-size: 0.85em;
+                                           padding: 6px 4px;
+                                           position: relative;
+                                           border: 2px solid #004085 !important;"
+                                    class="blocked-cell"
+                                    data-block-id="{{ block.block_id }}">
+                                    <div style="font-weight: bold; color: #004085; font-size: 0.95em; margin-bottom: 2px;">
+                                        🔵 BLOCKED
+                                    </div>
+                                    <strong>{{ block.block_type }}</strong><br>
+                                    {{ block.start }} – {{ block.end }}<br>
+                                    <span style="font-size: 0.75em; color: #333;">{{ block.reason }}</span>
+                                    <div class="block-hover-btn" style="display:none; margin-top: 6px;">
+                                        <form method="POST" action="/blocks/remove/{{ block.block_id }}"
+                                              style="margin:0;"
+                                              onsubmit="return confirm('Remove this block?')">
+                                            <button type="submit" class="btn btn-primary btn-sm"
+                                                    style="font-size: 0.75em; padding: 2px 6px;">
+                                                Remove Block
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            {% endif %}
 
+                        {# ── SKIP — covered by block rowspan ── #}
                         {% elif key in blocked_cells %}
                             {# Covered by block rowspan — skip #}
 
+                        {# ── ACTIVE + CANCELLED on the same slot — split column ── #}
+                        {% elif key in booking_map and key in cancelled_map %}
+                            {% set booking = booking_map[key] %}
+                            {% set cancelled = cancelled_map[key] %}
+                            <td rowspan="{{ booking.rowspan }}"
+                                style="padding: 0; vertical-align: top; position: relative;"
+                                class="split-cell">
+                                <div style="display: flex; height: 100%; min-height: 60px;">
+                                    {# Left sub-column: active booking #}
+                                    <div style="flex: 1; background: #d4edda; padding: 4px 3px;
+                                                font-size: 0.8em; border-right: 1px solid #b8dabc;
+                                                position: relative;"
+                                         class="booked-sub">
+                                        <strong>{{ booking.member_name }}</strong><br>
+                                        {{ booking.start }}–{{ booking.end }}
+                                        {% if booking.has_guest %}
+                                            <br><span style="font-size:0.7em; color:#555;">+ Guest</span>
+                                        {% endif %}
+                                        <div class="cancel-hover-btn" style="display:none; margin-top:4px;">
+                                            <form method="POST" action="/bookings/cancel/{{ booking.booking_id }}"
+                                                  style="margin:0;"
+                                                  onsubmit="return confirm('Cancel this booking for {{ booking.member_name }}?')">
+                                                <button type="submit" class="btn btn-danger btn-sm"
+                                                        style="font-size:0.7em; padding:2px 4px;">
+                                                    Cancel
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    {# Right sub-column: cancelled booking — hidden when toggle is off #}
+                                    <div class="cancelled-content"
+                                         style="flex: 1; background: #f8d7da;
+                                                background-image: repeating-linear-gradient(
+                                                    45deg,
+                                                    rgba(220,53,69,0.1) 0px,
+                                                    rgba(220,53,69,0.1) 4px,
+                                                    transparent 4px,
+                                                    transparent 12px);
+                                                padding: 4px 3px; font-size: 0.8em;">
+                                        <div style="font-weight:bold; color:#dc3545; font-size:0.85em;">❌ CANCELLED</div>
+                                        <span style="color:#721c24;">{{ cancelled.member_name }}</span><br>
+                                        <span style="font-size:0.75em; color:#888; text-decoration:line-through;">
+                                            {{ cancelled.start }}–{{ cancelled.end }}
+                                        </span>
+                                        {% if cancelled.has_guest %}
+                                            <br><span style="font-size:0.7em; color:#888;">+ Guest</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+
+                        {# ── ACTIVE BOOKING only ── #}
                         {% elif key in booking_map %}
                             {% set booking = booking_map[key] %}
                             <td rowspan="{{ booking.rowspan }}"
@@ -118,20 +237,22 @@
                                 </div>
                             </td>
 
+                        {# ── SKIP — covered by booking rowspan ── #}
                         {% elif key in booked_cells %}
                             {# Covered by booking rowspan — skip #}
 
+                        {# ── CANCELLED ONLY (no active booking, no block) ── #}
                         {% elif key in cancelled_map %}
                             {% set cancelled = cancelled_map[key] %}
                             <td rowspan="{{ cancelled.rowspan }}"
+                                class="cancelled-cell"
                                 style="background-color: #f8d7da;
                                        background-image: repeating-linear-gradient(
                                            45deg,
                                            rgba(220,53,69,0.1) 0px,
                                            rgba(220,53,69,0.1) 4px,
                                            transparent 4px,
-                                           transparent 12px
-                                       );
+                                           transparent 12px);
                                        vertical-align: middle;
                                        font-size: 0.85em;
                                        padding: 4px;
@@ -148,9 +269,11 @@
                                 {% endif %}
                             </td>
 
+                        {# ── SKIP — covered by cancelled rowspan ── #}
                         {% elif key in cancelled_cells %}
                             {# Covered by cancelled rowspan — skip #}
 
+                        {# ── EMPTY / AVAILABLE ── #}
                         {% else %}
                             <td style="height: 40px; background-color: #f9f9f9; position: relative;"
                                 class="empty-cell"
@@ -266,7 +389,36 @@
 </form>
 
 <script>
-// Hover show/hide for empty cells
+// ── Cancelled toggle ──────────────────────────────────────────────────────────
+// cancelledVisible tracks the current display state. Starts as true (shown).
+let cancelledVisible = true;
+
+function toggleCancelled() {
+    cancelledVisible = !cancelledVisible;
+
+    // Full standalone cancelled cells (td.cancelled-cell)
+    document.querySelectorAll('td.cancelled-cell').forEach(td => {
+        td.style.display = cancelledVisible ? '' : 'none';
+    });
+
+    // The right sub-column inside split cells (active+cancelled or block+cancelled)
+    document.querySelectorAll('.cancelled-content').forEach(div => {
+        div.style.display = cancelledVisible ? '' : 'none';
+    });
+
+    // Also hide the left-border divider line in split cells when cancelled is hidden
+    document.querySelectorAll('.split-cell').forEach(td => {
+        const inner = td.querySelector('div[style*="display: flex"]');
+        if (inner) {
+            inner.style.display = cancelledVisible ? 'flex' : 'block';
+        }
+    });
+
+    document.getElementById('toggleCancelBtn').textContent =
+        cancelledVisible ? 'Hide Cancelled' : 'Show Cancelled';
+}
+
+// ── Hover interactions ────────────────────────────────────────────────────────
 document.querySelectorAll('.empty-cell').forEach(cell => {
     cell.addEventListener('mouseenter', () => {
         cell.querySelector('.add-block-btn').style.display = 'block';
@@ -276,26 +428,41 @@ document.querySelectorAll('.empty-cell').forEach(cell => {
     });
 });
 
-// Hover show/hide for blocked cells
 document.querySelectorAll('.blocked-cell').forEach(cell => {
     cell.addEventListener('mouseenter', () => {
-        cell.querySelector('.block-hover-btn').style.display = 'block';
+        const btn = cell.querySelector('.block-hover-btn');
+        if (btn) btn.style.display = 'block';
     });
     cell.addEventListener('mouseleave', () => {
-        cell.querySelector('.block-hover-btn').style.display = 'none';
+        const btn = cell.querySelector('.block-hover-btn');
+        if (btn) btn.style.display = 'none';
     });
 });
 
-// Hover show/hide for booked cells
 document.querySelectorAll('.booked-cell').forEach(cell => {
     cell.addEventListener('mouseenter', () => {
-        cell.querySelector('.cancel-hover-btn').style.display = 'block';
+        const btn = cell.querySelector('.cancel-hover-btn');
+        if (btn) btn.style.display = 'block';
     });
     cell.addEventListener('mouseleave', () => {
-        cell.querySelector('.cancel-hover-btn').style.display = 'none';
+        const btn = cell.querySelector('.cancel-hover-btn');
+        if (btn) btn.style.display = 'none';
     });
 });
 
+// Hover for the active booking sub-column inside split cells
+document.querySelectorAll('.booked-sub').forEach(div => {
+    div.addEventListener('mouseenter', () => {
+        const btn = div.querySelector('.cancel-hover-btn');
+        if (btn) btn.style.display = 'block';
+    });
+    div.addEventListener('mouseleave', () => {
+        const btn = div.querySelector('.cancel-hover-btn');
+        if (btn) btn.style.display = 'none';
+    });
+});
+
+// ── Block modal ───────────────────────────────────────────────────────────────
 function openBlockModal(courtNum, slot, dateStr) {
     document.getElementById('modal_court_id').value = courtNum;
     document.getElementById('modal_date').value = dateStr;
@@ -329,12 +496,12 @@ function closeConflictModal() {
 }
 
 function checkConflicts() {
-    const courtId = document.getElementById('modal_court_id').value;
-    const date = document.getElementById('modal_date').value;
+    const courtId   = document.getElementById('modal_court_id').value;
+    const date      = document.getElementById('modal_date').value;
     const startTime = document.getElementById('modal_start_time').value;
-    const endTime = document.getElementById('modal_end_time').value;
+    const endTime   = document.getElementById('modal_end_time').value;
     const blockType = document.getElementById('modal_block_type').value;
-    const reason = document.getElementById('modal_reason').value;
+    const reason    = document.getElementById('modal_reason').value;
 
     const formData = new FormData();
     formData.append('court_id', courtId);
@@ -345,12 +512,12 @@ function checkConflicts() {
     fetch('/blocks/check', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(data => {
-            document.getElementById('final_court_id').value = data.court_id;
-            document.getElementById('final_date').value = data.date;
+            document.getElementById('final_court_id').value  = data.court_id;
+            document.getElementById('final_date').value       = data.date;
             document.getElementById('final_start_time').value = data.start_time;
-            document.getElementById('final_end_time').value = data.end_time;
+            document.getElementById('final_end_time').value   = data.end_time;
             document.getElementById('final_block_type').value = blockType;
-            document.getElementById('final_reason').value = reason;
+            document.getElementById('final_reason').value     = reason;
 
             if (data.conflicts.length === 0) {
                 document.getElementById('finalBlockForm').submit();
@@ -373,7 +540,8 @@ function renderConflicts(conflicts) {
         let courtOptions = '';
         if (c.available_courts.length > 0) {
             courtOptions = `
-                <form method="POST" action="/bookings/move/${c.booking_id}" style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <form method="POST" action="/bookings/move/${c.booking_id}"
+                      style="margin-top:8px; display:flex; gap:8px; align-items:center;">
                     <select name="new_court_id" class="form-control form-control-sm" style="width:auto;">
                         ${c.available_courts.map(ct =>
                             `<option value="${ct.id}">Court ${ct.court_number}</option>`
@@ -410,6 +578,7 @@ document.getElementById('conflictModal').addEventListener('click', function(e) {
     if (e.target === this) closeConflictModal();
 });
 
+// ── Date picker sync ──────────────────────────────────────────────────────────
 function syncFromPicker() {
     const picker = document.getElementById('datePicker').value;
     if (picker) {
