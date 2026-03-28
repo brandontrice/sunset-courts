@@ -84,8 +84,8 @@ def calendar():
             'start': slot_key,
             'end': f'{b.end_time.hour:02d}:{b.end_time.minute:02d}',
             'rowspan': duration_slots,
-            'has_guest': b.has_guest
-            'guestname': b.guestname
+            'has_guest': b.has_guest,
+            'guestname': b.guestname,
             'guest_phone_number':b.guestphonenumber,
         
         }
