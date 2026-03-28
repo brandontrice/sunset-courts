@@ -23,6 +23,22 @@
     <a href="/calendar?date={{ today }}" class="btn btn-outline-secondary btn-sm">Today</a>
 </div>
 
+<!-- Legend -->
+<div style="display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; font-size: 0.85em;">
+    <span style="display:flex; align-items:center; gap:6px;">
+        <span style="width:16px; height:16px; background:#d4edda; border:1px solid #c3e6cb; display:inline-block; border-radius:3px;"></span> Active Booking
+    </span>
+    <span style="display:flex; align-items:center; gap:6px;">
+        <span style="width:16px; height:16px; background:#f8d7da; border:2px solid #dc3545; display:inline-block; border-radius:3px;"></span> Cancelled
+    </span>
+    <span style="display:flex; align-items:center; gap:6px;">
+        <span style="width:16px; height:16px; background:#cce5ff; border:2px solid #004085; display:inline-block; border-radius:3px;"></span> Court Block
+    </span>
+    <span style="display:flex; align-items:center; gap:6px;">
+        <span style="width:16px; height:16px; background:#f9f9f9; border:1px solid #ccc; display:inline-block; border-radius:3px;"></span> Available
+    </span>
+</div>
+
 <div style="overflow-x: auto;">
     <table class="table table-bordered text-center" style="min-width: 900px; table-layout: fixed;">
         <thead class="thead-dark">
@@ -39,14 +55,15 @@
                     <td style="font-size: 0.85em; white-space: nowrap; vertical-align: middle;">{{ slot }}</td>
                     {% for i in range(1, 7) %}
                         {% set key = (i, slot) %}
+
                         {% if key in block_map %}
                             {% set block = block_map[key] %}
                             <td rowspan="{{ block.rowspan }}"
-                                style="background-color: #f8d7da;
+                                style="background-color: #cce5ff;
                                        background-image: repeating-linear-gradient(
                                            45deg,
-                                           rgba(220,53,69,0.15) 0px,
-                                           rgba(220,53,69,0.15) 4px,
+                                           rgba(0,64,133,0.08) 0px,
+                                           rgba(0,64,133,0.08) 4px,
                                            transparent 4px,
                                            transparent 12px
                                        );
@@ -54,28 +71,30 @@
                                        font-size: 0.85em;
                                        padding: 6px 4px;
                                        position: relative;
-                                       border: 2px solid #dc3545 !important;"
+                                       border: 2px solid #004085 !important;"
                                 class="blocked-cell"
                                 data-block-id="{{ block.block_id }}">
-                                <div style="font-weight: bold; color: #dc3545; font-size: 0.95em; margin-bottom: 2px;">
-                                    🚫 BLOCKED
+                                <div style="font-weight: bold; color: #004085; font-size: 0.95em; margin-bottom: 2px;">
+                                    🔵 BLOCKED
                                 </div>
                                 <strong>{{ block.block_type }}</strong><br>
                                 {{ block.start }} – {{ block.end }}<br>
-                                <span style="font-size: 0.75em; color: #555;">{{ block.reason }}</span>
+                                <span style="font-size: 0.75em; color: #333;">{{ block.reason }}</span>
                                 <div class="block-hover-btn" style="display:none; margin-top: 6px;">
                                     <form method="POST" action="/blocks/remove/{{ block.block_id }}"
                                           style="margin:0;"
                                           onsubmit="return confirm('Remove this block?')">
-                                        <button type="submit" class="btn btn-danger btn-sm"
+                                        <button type="submit" class="btn btn-primary btn-sm"
                                                 style="font-size: 0.75em; padding: 2px 6px;">
                                             Remove Block
                                         </button>
                                     </form>
                                 </div>
                             </td>
+
                         {% elif key in blocked_cells %}
                             {# Covered by block rowspan — skip #}
+
                         {% elif key in booking_map %}
                             {% set booking = booking_map[key] %}
                             <td rowspan="{{ booking.rowspan }}"
@@ -98,8 +117,40 @@
                                     </form>
                                 </div>
                             </td>
+
                         {% elif key in booked_cells %}
                             {# Covered by booking rowspan — skip #}
+
+                        {% elif key in cancelled_map %}
+                            {% set cancelled = cancelled_map[key] %}
+                            <td rowspan="{{ cancelled.rowspan }}"
+                                style="background-color: #f8d7da;
+                                       background-image: repeating-linear-gradient(
+                                           45deg,
+                                           rgba(220,53,69,0.1) 0px,
+                                           rgba(220,53,69,0.1) 4px,
+                                           transparent 4px,
+                                           transparent 12px
+                                       );
+                                       vertical-align: middle;
+                                       font-size: 0.85em;
+                                       padding: 4px;
+                                       border: 2px solid #dc3545 !important;">
+                                <div style="font-weight: bold; color: #dc3545; font-size: 0.9em; margin-bottom: 2px;">
+                                    ❌ CANCELLED
+                                </div>
+                                <span style="color: #721c24;">{{ cancelled.member_name }}</span><br>
+                                <span style="font-size: 0.8em; color: #888; text-decoration: line-through;">
+                                    {{ cancelled.start }} – {{ cancelled.end }}
+                                </span>
+                                {% if cancelled.has_guest %}
+                                    <br><span style="font-size: 0.75em; color: #888;">+ Guest</span>
+                                {% endif %}
+                            </td>
+
+                        {% elif key in cancelled_cells %}
+                            {# Covered by cancelled rowspan — skip #}
+
                         {% else %}
                             <td style="height: 40px; background-color: #f9f9f9; position: relative;"
                                 class="empty-cell"
@@ -115,6 +166,7 @@
                                 </div>
                             </td>
                         {% endif %}
+
                     {% endfor %}
                 </tr>
             {% endfor %}
@@ -276,7 +328,6 @@ function closeConflictModal() {
     document.getElementById('conflictModal').style.display = 'none';
 }
 
-// Check for conflicts before saving block
 function checkConflicts() {
     const courtId = document.getElementById('modal_court_id').value;
     const date = document.getElementById('modal_date').value;
@@ -294,7 +345,6 @@ function checkConflicts() {
     fetch('/blocks/check', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(data => {
-            // Store block data for final save
             document.getElementById('final_court_id').value = data.court_id;
             document.getElementById('final_date').value = data.date;
             document.getElementById('final_start_time').value = data.start_time;
@@ -303,10 +353,8 @@ function checkConflicts() {
             document.getElementById('final_reason').value = reason;
 
             if (data.conflicts.length === 0) {
-                // No conflicts — save immediately
                 document.getElementById('finalBlockForm').submit();
             } else {
-                // Show conflict modal
                 closeBlockModal();
                 renderConflicts(data.conflicts);
                 document.getElementById('conflictModal').style.display = 'flex';
@@ -355,7 +403,6 @@ function saveBlockAnyway() {
     document.getElementById('finalBlockForm').submit();
 }
 
-// Close modals on background click
 document.getElementById('blockModal').addEventListener('click', function(e) {
     if (e.target === this) closeBlockModal();
 });
@@ -363,7 +410,6 @@ document.getElementById('conflictModal').addEventListener('click', function(e) {
     if (e.target === this) closeConflictModal();
 });
 
-// Date jump functions
 function syncFromPicker() {
     const picker = document.getElementById('datePicker').value;
     if (picker) {
