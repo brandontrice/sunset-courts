@@ -25,7 +25,7 @@ class Member(db.Model):
     dues = db.relationship('Dues', backref='member', lazy=True)
     bookings = db.relationship('Booking', backref='member', lazy=True)
 
-    #Status Display added to members for UI - Added by Channing
+    # Status display added to members for UI - Added by Channing
     @property
     def status(self):
         if self.is_banned:
@@ -95,9 +95,10 @@ class Booking(db.Model):
 
     guest = db.relationship('Guest', backref='booking', uselist=False, lazy=True)
 
-    __table_args__ = (
-        db.UniqueConstraint('court_id', 'date', 'start_time', name='uq_court_date_start'),
-    )
+    # UniqueConstraint removed — it prevented a new active booking from being
+    # inserted at the same court/date/start_time as an existing cancelled one.
+    # Duplicate-start-time collisions are now prevented in app.py's add_booking
+    # by deleting the cancelled record before inserting the new one.
 
 
 class Guest(db.Model):
@@ -111,7 +112,7 @@ class Guest(db.Model):
     booked_by_member = db.Column(db.Integer, db.ForeignKey('members.id'))
 
 
-#Ban Log Table - Added by Channing
+# Ban Log Table - Added by Channing
 class BanLog(db.Model):
     __tablename__ = 'ban_log'
 
@@ -124,7 +125,7 @@ class BanLog(db.Model):
     member     = db.relationship('Member', backref='ban_logs')
 
 
-#Inactive Account Log Table -Added by Channing
+# Inactive Account Log Table - Added by Channing
 class InactiveLog(db.Model):
     __tablename__ = 'inactive_log'
 
@@ -138,7 +139,7 @@ class InactiveLog(db.Model):
     member      = db.relationship('Member', backref='inactive_logs')
 
 
-#Ban helper Funtion - Added by Channing
+# Ban helper function - Added by Channing
 def ban_member(member_id, reason, banned_by):
     member = Member.query.get(member_id)
     member.is_banned = True
@@ -155,7 +156,7 @@ def ban_member(member_id, reason, banned_by):
     db.session.commit()
 
 
-#Members Search Function - Added by Channing
+# Members search function - Added by Channing
 def search_members(search_term):
     return Member.query.filter(
         (Member.phone == search_term) |
