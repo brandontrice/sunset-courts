@@ -400,23 +400,36 @@
 const CURRENT_YEAR = {{ current_year }};
 
 // ── Cancelled toggle ──────────────────────────────────────────────────────────
+// Strategy:
+//   - Standalone cancelled-cell <td>s: display none / restore
+//   - .cancelled-content sub-columns inside split cells: collapse to flex:0
+//     width so the active sibling column expands naturally to fill the cell.
+//     The outer flex wrapper is never touched — it stays display:flex always.
+
 let cancelledVisible = true;
 
 function toggleCancelled() {
     cancelledVisible = !cancelledVisible;
 
+    // Standalone cancelled rows (no active booking sharing the slot)
     document.querySelectorAll('td.cancelled-cell').forEach(td => {
         td.style.display = cancelledVisible ? '' : 'none';
     });
 
+    // Cancelled sub-columns inside split cells
     document.querySelectorAll('.cancelled-content').forEach(div => {
-        div.style.display = cancelledVisible ? '' : 'none';
-    });
-
-    document.querySelectorAll('.split-cell').forEach(td => {
-        const inner = td.querySelector('div[style*="display: flex"]');
-        if (inner) {
-            inner.style.display = cancelledVisible ? 'flex' : 'block';
+        if (cancelledVisible) {
+            div.style.flex     = '1';
+            div.style.overflow = '';
+            div.style.minWidth = '';
+            div.style.maxWidth = '';
+            div.style.padding  = '4px 3px';
+        } else {
+            div.style.flex     = '0';
+            div.style.overflow = 'hidden';
+            div.style.minWidth = '0';
+            div.style.maxWidth = '0';
+            div.style.padding  = '0';
         }
     });
 
