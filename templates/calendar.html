@@ -3,14 +3,32 @@
 
 <h1>Calendar View: Bookings</h1>
 
+{% set prev_year = prev_date[:4] | int %}
+{% set next_year = next_date[:4] | int %}
+
 <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-    <a href="/calendar?date={{ prev_date }}" class="btn btn-secondary btn-sm">← Previous</a>
+
+    {# Previous arrow — disabled if it would leave the current year #}
+    {% if prev_year == current_year %}
+        <a href="/calendar?date={{ prev_date }}" class="btn btn-secondary btn-sm">← Previous</a>
+    {% else %}
+        <button class="btn btn-secondary btn-sm" disabled title="Cannot navigate to a previous year">← Previous</button>
+    {% endif %}
+
     <strong>{{ display_date }}</strong>
-    <a href="/calendar?date={{ next_date }}" class="btn btn-secondary btn-sm">Next →</a>
+
+    {# Next arrow — disabled if it would leave the current year #}
+    {% if next_year == current_year %}
+        <a href="/calendar?date={{ next_date }}" class="btn btn-secondary btn-sm">Next →</a>
+    {% else %}
+        <button class="btn btn-secondary btn-sm" disabled title="Cannot navigate to a future year">Next →</button>
+    {% endif %}
 
     <form method="GET" action="/calendar" id="dateForm" style="margin: 0; display: flex; align-items: center; gap: 8px;">
         <label for="dateDisplay" style="margin: 0;">Jump to:</label>
         <input type="date" id="datePicker"
+               min="{{ current_year }}-01-01"
+               max="{{ current_year }}-12-31"
                style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;"
                onchange="syncFromPicker()">
         <input type="text" id="dateDisplay" placeholder="MM-DD-YYYY"
@@ -66,8 +84,6 @@
                         {# ── BLOCK ── #}
                         {% if key in block_map %}
                             {% set block = block_map[key] %}
-                            {# Check whether a cancelled booking also sits on this slot.
-                               If so, split the cell: left half = block, right half = cancelled. #}
                             {% if key in cancelled_map %}
                                 {% set cancelled = cancelled_map[key] %}
                                 <td rowspan="{{ block.rowspan }}"
@@ -76,7 +92,6 @@
                                     class="blocked-cell split-cell"
                                     data-block-id="{{ block.block_id }}">
                                     <div style="display: flex; height: 100%; min-height: 60px;">
-                                        {# Left sub-column: block #}
                                         <div style="flex: 1; background:#cce5ff;
                                                     background-image: repeating-linear-gradient(
                                                         45deg,
@@ -101,7 +116,6 @@
                                                 </form>
                                             </div>
                                         </div>
-                                        {# Right sub-column: cancelled booking — hidden when toggle is off #}
                                         <div class="cancelled-content"
                                              style="flex: 1; background:#f8d7da;
                                                     background-image: repeating-linear-gradient(
@@ -123,7 +137,6 @@
                                     </div>
                                 </td>
                             {% else %}
-                                {# Block only — no cancelled booking underneath #}
                                 <td rowspan="{{ block.rowspan }}"
                                     style="background-color: #cce5ff;
                                            background-image: repeating-linear-gradient(
@@ -158,7 +171,6 @@
                                 </td>
                             {% endif %}
 
-                        {# ── SKIP — covered by block rowspan ── #}
                         {% elif key in blocked_cells %}
                             {# Covered by block rowspan — skip #}
 
@@ -170,7 +182,6 @@
                                 style="padding: 0; vertical-align: top; position: relative;"
                                 class="split-cell">
                                 <div style="display: flex; height: 100%; min-height: 60px;">
-                                    {# Left sub-column: active booking #}
                                     <div style="flex: 1; background: #d4edda; padding: 4px 3px;
                                                 font-size: 0.8em; border-right: 1px solid #b8dabc;
                                                 position: relative;"
@@ -191,7 +202,6 @@
                                             </form>
                                         </div>
                                     </div>
-                                    {# Right sub-column: cancelled booking — hidden when toggle is off #}
                                     <div class="cancelled-content"
                                          style="flex: 1; background: #f8d7da;
                                                 background-image: repeating-linear-gradient(
@@ -237,11 +247,10 @@
                                 </div>
                             </td>
 
-                        {# ── SKIP — covered by booking rowspan ── #}
                         {% elif key in booked_cells %}
                             {# Covered by booking rowspan — skip #}
 
-                        {# ── CANCELLED ONLY (no active booking, no block) ── #}
+                        {# ── CANCELLED ONLY ── #}
                         {% elif key in cancelled_map %}
                             {% set cancelled = cancelled_map[key] %}
                             <td rowspan="{{ cancelled.rowspan }}"
@@ -269,7 +278,6 @@
                                 {% endif %}
                             </td>
 
-                        {# ── SKIP — covered by cancelled rowspan ── #}
                         {% elif key in cancelled_cells %}
                             {# Covered by cancelled rowspan — skip #}
 
@@ -389,24 +397,22 @@
 </form>
 
 <script>
+const CURRENT_YEAR = {{ current_year }};
+
 // ── Cancelled toggle ──────────────────────────────────────────────────────────
-// cancelledVisible tracks the current display state. Starts as true (shown).
 let cancelledVisible = true;
 
 function toggleCancelled() {
     cancelledVisible = !cancelledVisible;
 
-    // Full standalone cancelled cells (td.cancelled-cell)
     document.querySelectorAll('td.cancelled-cell').forEach(td => {
         td.style.display = cancelledVisible ? '' : 'none';
     });
 
-    // The right sub-column inside split cells (active+cancelled or block+cancelled)
     document.querySelectorAll('.cancelled-content').forEach(div => {
         div.style.display = cancelledVisible ? '' : 'none';
     });
 
-    // Also hide the left-border divider line in split cells when cancelled is hidden
     document.querySelectorAll('.split-cell').forEach(td => {
         const inner = td.querySelector('div[style*="display: flex"]');
         if (inner) {
@@ -450,7 +456,6 @@ document.querySelectorAll('.booked-cell').forEach(cell => {
     });
 });
 
-// Hover for the active booking sub-column inside split cells
 document.querySelectorAll('.booked-sub').forEach(div => {
     div.addEventListener('mouseenter', () => {
         const btn = div.querySelector('.cancel-hover-btn');
@@ -578,7 +583,7 @@ document.getElementById('conflictModal').addEventListener('click', function(e) {
     if (e.target === this) closeConflictModal();
 });
 
-// ── Date picker sync ──────────────────────────────────────────────────────────
+// ── Date picker sync (year-bounded) ──────────────────────────────────────────
 function syncFromPicker() {
     const picker = document.getElementById('datePicker').value;
     if (picker) {
@@ -604,7 +609,11 @@ function submitDate() {
     if (parts.length === 3 && parts[2].length === 4) {
         const mm = parts[0].padStart(2, '0');
         const dd = parts[1].padStart(2, '0');
-        const yyyy = parts[2];
+        const yyyy = parseInt(parts[2], 10);
+        if (yyyy !== CURRENT_YEAR) {
+            alert(`The calendar only shows dates within ${CURRENT_YEAR}. Please enter a date in that year.`);
+            return false;
+        }
         document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
         return true;
     }
