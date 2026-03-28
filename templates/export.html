@@ -1,23 +1,89 @@
 {% extends "base.html" %}
 {% block content %}
+
 <h1>Export Data</h1>
 <p>Click the button below to export all data to a CSV backup file. A copy will also be saved to the Pi's backup folder.</p>
 
-<div style="margin-top: 30px;">
-    <a href="/export/download" class="btn btn-success">Download Full Backup CSV</a>
+<!-- Next scheduled backup notice -->
+<div style="margin-top: 16px; padding: 10px 16px; background: #e8f4fd; border: 1px solid #bee5eb;
+            border-radius: 6px; display: inline-block; font-size: 0.95em; color: #0c5460;">
+    🕐 <strong>Next automatic backup:</strong> {{ next_backup_display }}
 </div>
 
-<div style="margin-top: 30px;">
-    {% if backups %}
-        <h4>Saved Backups</h4>
-        <ul>
-            {% for backup in backups %}
-                <li><a href="{{ url_for('serve_backup', filename=backup) }}">{{ backup }}</a></li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        <p>No backups yet.</p>
-    {% endif %}
+<!-- Manual export button -->
+<div style="margin-top: 24px;">
+    <a href="/export/download" class="btn btn-success">⬇ Download / Run Backup Now</a>
 </div>
+
+<!-- Backup list section -->
+<div style="margin-top: 36px;">
+
+    {% if latest %}
+
+        <!-- Most recent backup — always visible -->
+        <h4 style="margin-bottom: 8px;">Most Recent Backup</h4>
+        <div style="padding: 10px 16px; background: #f0fff4; border: 1px solid #c3e6cb;
+                    border-radius: 6px; margin-bottom: 24px; display: flex; align-items: center;
+                    gap: 16px; flex-wrap: wrap;">
+            <span style="font-size: 0.95em;">📄 <a href="{{ url_for('serve_backup', filename=latest) }}">{{ latest }}</a></span>
+            <a href="/export/backups/{{ latest }}" class="btn btn-outline-primary btn-sm">View</a>
+        </div>
+
+        {% if previous %}
+
+            <!-- Previous backups — collapsible -->
+            <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <button id="togglePrevBtn" class="btn btn-outline-secondary btn-sm"
+                        onclick="togglePrevious()">
+                    Show Previous Backups ({{ previous | length }})
+                </button>
+
+                <!-- Clear previous backups -->
+                <form method="POST" action="/export/clear"
+                      onsubmit="return confirm('Delete all backups except the most recent one? This cannot be undone.');"
+                      style="margin: 0;">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        🗑 Clear Previous Backups
+                    </button>
+                </form>
+            </div>
+
+            <div id="previousList" style="display: none;">
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    {% for backup in previous %}
+                        <li style="padding: 8px 12px; border-bottom: 1px solid #e9ecef;
+                                   font-size: 0.9em; display: flex; align-items: center; gap: 12px;">
+                            <span>📄 <a href="{{ url_for('serve_backup', filename=backup) }}">{{ backup }}</a></span>
+                            <a href="/export/backups/{{ backup }}" class="btn btn-outline-secondary btn-sm"
+                               style="font-size: 0.8em; padding: 2px 8px;">View</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+        {% else %}
+            <p style="color: #888; font-size: 0.9em;">No previous backups on file.</p>
+        {% endif %}
+
+    {% else %}
+        <p style="color: #888;">No backups yet.</p>
+    {% endif %}
+
+</div>
+
+<script>
+function togglePrevious() {
+    const list = document.getElementById('previousList');
+    const btn  = document.getElementById('togglePrevBtn');
+    const count = {{ previous | length }};
+    if (list.style.display === 'none') {
+        list.style.display = 'block';
+        btn.textContent = 'Hide Previous Backups (' + count + ')';
+    } else {
+        list.style.display = 'none';
+        btn.textContent = 'Show Previous Backups (' + count + ')';
+    }
+}
+</script>
 
 {% endblock %}
