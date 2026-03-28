@@ -3,7 +3,7 @@
 
 <h2>Book a Court</h2>
 
-<label>Member ID:</label>
+<label>Member's Phone Number:</label>
 <input type="text" id="memberId">
 <button onclick="lookupMember()">Lookup</button>
 
@@ -124,10 +124,10 @@
   let resolvedMemberId = null;
 
   async function lookupMember() {
-    const id = document.getElementById('memberId').value.trim();
+    const id = document.getElementById('membnumber').value.trim();
     if (!id) return;
 
-    const res  = await fetch(`/member/${id}`);
+    const res  = await fetch(`/member/${phone}`);
     const data = await res.json();
 
     if (data.error) {
