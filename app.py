@@ -319,6 +319,16 @@ def add_booking():
 
     return jsonify({'success': True, 'booking_id': new_booking.id})
 
+@app.route("/bookings/delete/<int:booking_id>", methods=["DELETE"])
+def delete_booking(booking_id):
+    conn = sqlite3.connect("bookings.db")
+    c = conn.cursor()
+
+    c.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
+    conn.commit()
+    conn.close()
+
+    return {"success": True}
 
 @app.route('/export')
 def export():
