@@ -25,19 +25,21 @@
     {% endfor %}
   </select>
 
-  <!-- step="1800" restricts time picker to 30-minute increments (1800 seconds) -->
+  <!-- Start and end time dropdowns are built in JS at 30-minute increments only.
+       Using a select instead of type="time" because browsers don't reliably
+       enforce step="1800" — users can still type arbitrary minutes in some browsers. -->
   <label>Start Time:</label>
-  <input type="time" id="startTime" step="1800">
+  <select id="startTime" onchange="updateEndTimes()"></select>
 
   <label>End Time:</label>
-  <input type="time" id="endTime" step="1800">
+  <select id="endTime"></select>
 
   <!-- Optional guest flag — maps to has_guest on the Booking model -->
   <label>
     <input type="checkbox" id="hasGuest" onclick="ShowGuest()"> Bringing a guest?
   </label>
 
-  <!-- Guest info section — only one div with this ID, shown/hidden by ShowGuest() -->
+  <!-- Guest info section — shown/hidden by ShowGuest() -->
   <div id="GuestInfo" style="display:none;">
     <h3>Guest Info</h3>
     <label>Guest Name</label>
@@ -57,51 +59,87 @@
   // Stores the resolved member ID after a successful lookup
   let resolvedMemberId = null;
 
+  // Build the list of 30-minute time slots from 06:00 to 22:00 (matches calendar)
+  function buildTimeSlots() {
+    const slots = [];
+    for (let h = 6; h < 22; h++) {
+      slots.push(`${String(h).padStart(2,'0')}:00`);
+      slots.push(`${String(h).padStart(2,'0')}:30`);
+    }
+    slots.push('22:00');
+    return slots;
+  }
+
+  const allSlots = buildTimeSlots();
+
+  function populateStartTimes() {
+    const startSel = document.getElementById('startTime');
+    startSel.innerHTML = '';
+    // Exclude 22:00 as a start time — a booking must end by 22:00, not start there
+    allSlots.slice(0, -1).forEach(slot => {
+      const opt = document.createElement('option');
+      opt.value = slot;
+      opt.textContent = slot;
+      startSel.appendChild(opt);
+    });
+    updateEndTimes();
+  }
+
+  // End time dropdown only shows slots after the selected start time
+  function updateEndTimes() {
+    const startVal = document.getElementById('startTime').value;
+    const endSel   = document.getElementById('endTime');
+    const startIdx = allSlots.indexOf(startVal);
+    endSel.innerHTML = '';
+    // Offer only slots ahead of start (minimum 30-minute booking enforced here)
+    allSlots.slice(startIdx + 1).forEach(slot => {
+      const opt = document.createElement('option');
+      opt.value = slot;
+      opt.textContent = slot;
+      endSel.appendChild(opt);
+    });
+  }
+
+  populateStartTimes();
+
   async function lookupMember() {
     const id = document.getElementById("memberId").value.trim();
     if (!id) return;
 
-    // Calls the /member/<id> route in app.py to validate the member
-    const res = await fetch(`/member/${id}`);
+    const res  = await fetch(`/member/${id}`);
     const data = await res.json();
 
-    // If the member is invalid, banned, or inactive, hide the form and alert
     if (data.error) {
       document.getElementById("memberInfo").style.display = "none";
       alert(data.error);
       return;
     }
 
-    // Store the member ID so it can be sent with the booking request
     resolvedMemberId = data.id;
-    document.getElementById("name").textContent = data.name;
+    document.getElementById("name").textContent  = data.name;
     document.getElementById("email").textContent = data.email || "N/A";
-
-    // Reveal the booking form now that a valid member is confirmed
     document.getElementById("memberInfo").style.display = "block";
   }
 
   async function scheduleBooking() {
-    const courtId  = document.getElementById("courtId").value;
-    const date     = document.getElementById("date").value;
+    const courtId   = document.getElementById("courtId").value;
+    const date      = document.getElementById("date").value;
     const startTime = document.getElementById("startTime").value;
     const endTime   = document.getElementById("endTime").value;
     const hasGuest  = document.getElementById("hasGuest").checked;
     const msgEl     = document.getElementById("bookingMessage");
 
-    // Basic client-side validation before hitting the server
     if (!date || !startTime || !endTime) {
       msgEl.textContent = "Please fill in all fields.";
       return;
     }
 
-    // Prevent end time from being the same as or before start time
+    // Safeguard — shouldn't be reachable with select dropdowns but kept defensively
     if (startTime >= endTime) {
       msgEl.textContent = "End time must be after start time.";
       return;
     }
 
-    // POST to /bookings/add in app.py which handles conflict checking and saving
     const res = await fetch("/bookings/add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -117,7 +155,6 @@
 
     const data = await res.json();
 
-    // Display success or error message returned from the server
     if (data.success) {
       msgEl.style.color = "green";
       msgEl.textContent = "Booking confirmed!";
@@ -127,7 +164,6 @@
     }
   }
 
-  // Shows or hides the guest section based on the checkbox state
   function ShowGuest() {
     const section  = document.getElementById("GuestInfo");
     const checkbox = document.getElementById("hasGuest");
