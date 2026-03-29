@@ -31,7 +31,7 @@ class Member(db.Model):
         if self.is_banned:
             return 'banned'
         elif not self.is_active:
-            return 'left'
+            return 'inactive'
         else:
             return 'active'
 
@@ -39,7 +39,7 @@ class Member(db.Model):
     def status_display(self):
         return {
             'active': '🟢 Active',
-            'left':   '⚪ Left Club',
+            'inactive':   '⚪ Inactive',
             'banned': '🔴 Banned'
         }.get(self.status, '❓ Unknown')
 
