@@ -407,9 +407,9 @@ def booking():
     return render_template('booking.html', courts=courts)
 
 
-@app.route('/member/<int:member_id>')
-def get_member(member_id):
-    member = Member.query.get(member_id)
+@app.route('/member/by-phone/<phone>')
+def get_member(phone):
+    member = Member.query.filter_by(phone=phone).first()
     if not member or not member.is_active or member.is_banned:
         return jsonify({'error': 'Member not found or not eligible'}), 404
     return jsonify({
@@ -426,16 +426,19 @@ def add_booking():
 
     member_id = data.get('member_id')
     court_id = int(data.get('court_id'))
+    booking_date = date.fromisoformat(data.get('date'))
     start_time = datetime.strptime(data.get('start_time'), '%H:%M').time()
     end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
     has_guest = bool(data.get('has_guest', False))
-    booking_date = date.fromisoformat(data.get('date'))
-    #Restritics bookings to this year
+
+    # Reject past dates
+    if booking_date < date.today():
+        return jsonify({'error': 'Cannot book a date in the past.'}), 400
+
+    # Restrict to current year only
     current_year = date.today().year
-        if booking_date.year != current_year:
-            return jsonify({
-                'error': f'Bookings are only allowed for {current_year}.'
-            }), 400
+    if booking_date.year != current_year:
+        return jsonify({'error': f'Bookings are only allowed within {current_year}.'}), 400
 
     start_total = start_time.hour * 60 + start_time.minute
     end_total = end_time.hour * 60 + end_time.minute
