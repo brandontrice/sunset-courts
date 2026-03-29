@@ -3,21 +3,21 @@
 
 <h2>Book a Court</h2>
 
-<label>Member's Phone Number:</label>
-<input type="text" id="membnumber">
+<label>Member Phone Number:</label>
+<input type="text" id="memberPhone" placeholder="e.g. 5401234567">
 <button onclick="lookupMember()">Lookup</button>
 
-<!-- Member info section is hidden until a valid member is found via lookup -->
-<div id="membnumber" style="display:none;">
+<!-- Member info section — hidden until a valid lookup succeeds -->
+<div id="memberInfo" style="display:none;">
   <h3>Member Info</h3>
-  <p>Name: <span id="name"></span></p>
-  <p>Email: <span id="email"></span></p>
+  <p>Name: <span id="memberName"></span></p>
+  <p>Email: <span id="memberEmail"></span></p>
 
   <h3>Schedule a Court</h3>
-  <label>Date:</label>
-  <input type="date" id="date" min="01-01-2026" max="31-12-2026">
 
-  <!-- Court dropdown populated by Flask from the /booking route -->
+  <label>Date:</label>
+  <input type="date" id="date">
+
   <label>Court:</label>
   <select id="courtId">
     {% for court in courts %}
@@ -25,9 +25,7 @@
     {% endfor %}
   </select>
 
-  <!-- Both time selects are fully hardcoded here in the template.
-       Only :00 and :30 values exist as options — there is no way to pick anything else.
-       Start runs 06:00–21:30. End runs 06:30–22:00. -->
+  <!-- Start/end times locked to :00 and :30 increments only -->
   <label>Start Time:</label>
   <select id="startTime">
     <option value="06:00">06:00</option>
@@ -100,14 +98,10 @@
     <option value="22:00">22:00</option>
   </select>
 
-<!-- add check box here if needed -->
-  
-  <!-- Guest info section -->
+  <!-- Guest section — dynamically add/remove guest rows -->
   <h3>Guests</h3>
   <div id="guestContainer"></div>
-
-    <button type="button" onclick="addGuest()">➕ Add Guest</button>
-  <div\>
+  <button type="button" onclick="addGuest()">➕ Add Guest</button>
 
   <br><br>
   <button onclick="scheduleBooking()">Book Court</button>
@@ -117,11 +111,26 @@
 <script>
   let resolvedMemberId = null;
 
-  async function lookupMember() {
-    const id = document.getElementById('membnumber').value.trim();
-    if (!id) return;
+  // ── Set date picker bounds to current year on page load ──────────────────
+  (function () {
+    const today = new Date();
+    const year  = today.getFullYear();
+    const todayStr = today.toISOString().split('T')[0];
+    const picker = document.getElementById('date');
+    picker.min = todayStr;               // can't book in the past
+    picker.max = `${year}-12-31`;        // can't book beyond this year
+    picker.value = todayStr;             // default to today
+  })();
 
-    const res  = await fetch(`/member/${phone}`);
+  // ── Phone number lookup ───────────────────────────────────────────────────
+  async function lookupMember() {
+    const phone = document.getElementById('memberPhone').value.trim();
+    if (!phone) {
+      alert('Please enter a phone number.');
+      return;
+    }
+
+    const res  = await fetch(`/member/by-phone/${phone}`);
     const data = await res.json();
 
     if (data.error) {
@@ -131,86 +140,89 @@
     }
 
     resolvedMemberId = data.id;
-    document.getElementById('name').textContent  = data.name;
-    document.getElementById('email').textContent = data.email || 'N/A';
+    document.getElementById('memberName').textContent  = data.name;
+    document.getElementById('memberEmail').textContent = data.email || 'N/A';
     document.getElementById('memberInfo').style.display = 'block';
   }
 
+  // ── Book court ────────────────────────────────────────────────────────────
   async function scheduleBooking() {
-    const courtId          = document.getElementById('courtId').value;
-    
-    const startTime        = document.getElementById('startTime').value;
-    const endTime          = document.getElementById('endTime').value;
-    const hasGuest         = document.getElementById('hasGuest').checked;
-    const guestname        = document.getElementByID('guestname').value;
-    const guestphonenumber = document.getElementByID('guestphonenumber').value;
-    const msgEl            = document.getElementById('bookingMessage');
+    const courtId   = document.getElementById('courtId').value;
+    const date      = document.getElementById('date').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime   = document.getElementById('endTime').value;
+    const msgEl     = document.getElementById('bookingMessage');
 
-    const dateInput = document.getElementById("date");
-    const today = new Date();
-    const year = today.getFullYear();
-
-    dateInput.min = `${year}-01-01`;
-    dateInput.max = `${year}-12-31`;
-    
+    // Client-side date validation (backend also enforces this)
     if (!date) {
+      msgEl.style.color = 'red';
       msgEl.textContent = 'Please select a date.';
       return;
     }
-    
-    if booking_date < date.today():
-      return jsonify({
-        'error': 'Cannot book past dates.'
-      }), 400
-    
+
+    const today = new Date().toISOString().split('T')[0];
+    if (date < today) {
+      msgEl.style.color = 'red';
+      msgEl.textContent = 'Cannot book a date in the past.';
+      return;
+    }
+
     if (startTime >= endTime) {
       msgEl.style.color = 'red';
       msgEl.textContent = 'End time must be after start time.';
       return;
     }
 
+    // Collect all guest rows from the dynamic container
+    const guests = [...document.querySelectorAll('.guest-row')].map(row => ({
+      first_name: row.querySelector('.guestFirst').value.trim(),
+      last_name:  row.querySelector('.guestLast').value.trim(),
+      phone:      row.querySelector('.guestPhone').value.trim()
+    }));
+
+    const hasGuest = guests.length > 0;
+
     const res = await fetch('/bookings/add', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        member_id:          resolvedMemberId,
-        court_id:           courtId,
-        date:               date,
-        start_time:         startTime,
-        end_time:           endTime,
-        has_guest:          hasGuest,
-        Guest_Name:         guestname,
-        Guest_Phone_Number: guestphonenumber,
+        member_id:  resolvedMemberId,
+        court_id:   courtId,
+        date:       date,
+        start_time: startTime,
+        end_time:   endTime,
+        has_guest:  hasGuest,
+        guests:     guests
       })
     });
 
-    const data = await res.json();
+    const result = await res.json();
 
-    if (data.success) {
+    if (result.success) {
       msgEl.style.color = 'green';
       msgEl.textContent = 'Booking confirmed!';
+      // Clear guests after successful booking
+      document.getElementById('guestContainer').innerHTML = '';
     } else {
       msgEl.style.color = 'red';
-      msgEl.textContent = data.error || 'Booking failed.';
+      msgEl.textContent = result.error || 'Booking failed.';
     }
   }
-function addGuest() {
-  const container = document.getElementById("guestContainer");
 
-  const div = document.createElement("div");
-  div.classList.add("guest");
-
-  div.innerHTML = `
-    <input type="text" placeholder="First Name" class="guestFirst">
-    <input type="text" placeholder="Last Name" class="guestLast">
-    <input type="text" placeholder="Phone Number" class="guestPhone">
-    <button type="button" onclick="this.parentElement.remove()">❌</button>
-    <br><br>
-  `;
-
-  container.appendChild(div);
-}
-
+  // ── Dynamic guest rows ────────────────────────────────────────────────────
+  function addGuest() {
+    const container = document.getElementById('guestContainer');
+    const div = document.createElement('div');
+    div.classList.add('guest-row');
+    div.style.marginBottom = '8px';
+    div.innerHTML = `
+      <input type="text" placeholder="First Name" class="guestFirst">
+      <input type="text" placeholder="Last Name"  class="guestLast">
+      <input type="text" placeholder="Phone Number" class="guestPhone">
+      <button type="button" onclick="this.parentElement.remove()">❌</button>
+    `;
+    container.appendChild(div);
+  }
 </script>
 
 {% endblock %}
