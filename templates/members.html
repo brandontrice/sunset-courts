@@ -304,7 +304,7 @@
 
             <!-- Leave blank for a permanent ban — if filled the ban will lift automatically on that date -->
             <label>Ban End Date (leave blank for permanent)</label>
-            <input type="date" name="ban_lift_date">
+            <input type="date" name="ban_lift_date" id="banLiftDate">
 
             <button type="submit" class="btn" style="margin-top:14px;">Confirm Ban</button>
             <button type="button" class="btn" style="margin-top:14px;" onclick="closeModal('banModal')">Cancel</button>
@@ -390,6 +390,7 @@
     function openBanModal(id, name) {
         document.getElementById('banMemberId').value = id;
         document.getElementById('banMemberName').textContent = name;
+        document.getElementById('banLiftDate').min = new Date().toISOString().split('T')[0];
         openModal('banModal');
     }
 
