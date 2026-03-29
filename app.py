@@ -638,8 +638,6 @@ def add_member():
             phone=phone,
             email=email,
             join_date=join_date,
-            family_name=family_name,
-            role=role,
             is_active=True,
             is_banned=False
         )
@@ -662,7 +660,6 @@ def edit_member():
     try:
         member_id   = int(request.form.get('member_id'))
         member      = Member.query.get_or_404(member_id)
-
         first_name  = sanitize_name(request.form.get('first_name', ''))
         last_name   = sanitize_name(request.form.get('last_name', ''))
         phone       = sanitize_phone(request.form.get('phone', ''))
@@ -683,8 +680,6 @@ def edit_member():
         member.last_name   = last_name
         member.phone       = phone           # Task 1
         member.email       = email
-        member.family_name = family_name     # Task 5
-        member.role        = role if role in ('member', 'volunteer') else 'member'
 
         db.session.commit()
         flash(f'{first_name} {last_name} updated successfully.', 'success')
@@ -705,6 +700,7 @@ def ban_member():
         member_id  = int(request.form.get('member_id'))
         ban_reason = request.form.get('ban_reason', '').strip()
         banned_by  = request.form.get('banned_by', '').strip()
+        ban_lift_date_str = request.form.get('ban_lift_date', '').strip()
 
         if not ban_reason or len(ban_reason) > 500:
             flash('A valid ban reason is required.', 'danger')
@@ -722,6 +718,12 @@ def ban_member():
         member.ban_reason = ban_reason
         member.ban_date   = datetime.utcnow()
 
+         # Set lift date if provided (temporary ban), otherwise leave as permanent
+        member.ban_lift_date = (
+            datetime.strptime(ban_lift_date_str, '%Y-%m-%d')
+            if ban_lift_date_str else None
+        )
+
         # Log the ban with full details
         log = BanLog(
             member_id=member_id,
@@ -730,7 +732,11 @@ def ban_member():
         )
         db.session.add(log)
         db.session.commit()
-        flash(f'{member.first_name} {member.last_name} has been banned.', 'warning')
+        
+        if member.ban_lift_date:
+            flash(f'{member.first_name} {member.last_name} has been banned until {member.ban_lift_date.strftime("%m/%d/%Y")}.', 'warning')
+        else:
+            flash(f'{member.first_name} {member.last_name} has been permanently banned.', 'warning')
 
     except Exception:
         db.session.rollback()
