@@ -156,6 +156,7 @@
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Email</th>
+                <th>Role</th>
                 <th>Join Date</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -167,6 +168,7 @@
                 <td>{{ m.last_name }}, {{ m.first_name }}</td>
                 <td>{{ m.phone }}</td>
                 <td>{{ m.email or '—' }}</td>
+                <td>{{ m.role | capitalize }}</td>
                 <td>{{ m.join_date.strftime('%m/%d/%Y') if m.join_date else '—' }}</td>
                 <td>
                     {% if m.is_banned %}
