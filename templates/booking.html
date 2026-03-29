@@ -7,6 +7,9 @@
 <input type="text" id="memberPhone" placeholder="e.g. 5401234567">
 <button onclick="lookupMember()">Lookup</button>
 
+<!-- Multiple match selection — shown only when lookup returns more than one result -->
+<div id="memberSelect" style="display:none;"></div>
+
 <!-- Member info section — hidden until a valid lookup succeeds -->
 <div id="memberInfo" style="display:none;">
   <h3>Member Info</h3>
@@ -135,13 +138,46 @@
 
     if (data.error) {
       document.getElementById('memberInfo').style.display = 'none';
+      document.getElementById('memberSelect').style.display = 'none';
       alert(data.error);
       return;
     }
 
-    resolvedMemberId = data.id;
-    document.getElementById('memberName').textContent  = data.name;
-    document.getElementById('memberEmail').textContent = data.email || 'N/A';
+    if (data.members.length === 1) {
+      // Only one match — populate directly, no selection needed
+      selectMember(data.members[0]);
+    } else {
+      // Multiple matches — show selection list
+      document.getElementById('memberInfo').style.display = 'none';
+      renderMemberSelect(data.members);
+    }
+  }
+
+  function renderMemberSelect(members) {
+    const container = document.getElementById('memberSelect');
+    container.innerHTML = `
+      <div style="margin: 12px 0; padding: 12px; border: 1px solid #ccc; border-radius: 6px; background: #f9f9f9;">
+        <strong>Multiple members found — please select the correct one:</strong>
+        <ul style="list-style: none; padding: 0; margin: 10px 0 0 0;">
+          ${members.map(m => `
+            <li style="margin-bottom: 8px;">
+              <button class="btn btn-outline-primary btn-sm"
+                      onclick='selectMember(${JSON.stringify(m)})'>
+                ${m.name} — ${m.email || 'No email'} (${m.role})
+              </button>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+    container.style.display = 'block';
+  }
+
+  function selectMember(member) {
+    resolvedMemberId = member.id;
+    document.getElementById('memberName').textContent  = member.name;
+    document.getElementById('memberEmail').textContent = member.email || 'N/A';
+    document.getElementById('memberSelect').style.display = 'none';
     document.getElementById('memberInfo').style.display = 'block';
   }
 
