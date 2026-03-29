@@ -235,7 +235,7 @@
         <h2>Add New Member</h2>
        
       <!-- Submit form to /members/add -->
-      <form method="POST" action="/members/add">
+        <form method="POST" action="/members/add">
             <label>First Name *</label>
             <input type="text" name="first_name" required maxlength="50">
 
@@ -245,17 +245,8 @@
             <label>Phone (used as ID) *</label>
             <input type="tel" name="phone" required placeholder="e.g. 5405551234">
 
-            <label>Email</label>
-            <input type="email" name="email" placeholder="Optional">
-
-            <label>Family Name</label>
-            <input type="text" name="family_name" placeholder="Optional – groups family accounts">
-
-            <label>Role</label>
-            <select name="role">
-                <option value="member">Member</option>
-                <option value="volunteer">Volunteer</option>
-            </select>
+            <label>Email *</label>
+            <input type="email" name="email" required placeholder="e.g. member@email.com">
 
             <label>Join Date</label>
             <input type="date" name="join_date" value="{{ today }}">
@@ -286,17 +277,8 @@
             <label>Phone *</label>
             <input type="tel" name="phone" id="editPhone" required>
 
-            <label>Email</label>
-            <input type="email" name="email" id="editEmail">
-
-            <label>Family Name</label>
-            <input type="text" name="family_name" id="editFamilyName">
-
-            <label>Role</label>
-            <select name="role" id="editRole">
-                <option value="member">Member</option>
-                <option value="volunteer">Volunteer</option>
-            </select>
+            <label>Email *</label>
+            <input type="email" name="email" id="editEmail" required>
 
             <label>Join Date</label>
             <input type="date" name="join_date" id="editJoinDate">
@@ -306,7 +288,6 @@
         </form>
     </div>
 </div>
-
 
 <!-- * Ban Modal: Form for ban members accounts * -->
 <div class="modal-overlay" id="banModal">
@@ -394,14 +375,12 @@
     // * Form Population Logic *
   
     // Pre-fills the Edit Modal with existing member data before showing it
-    function openEditModal(id, first, last, phone, email, family, role, joinDate) {
+    function openEditModal(id, first, last, phone, email, joinDate) {
         document.getElementById('editMemberId').value  = id;
         document.getElementById('editFirstName').value = first;
         document.getElementById('editLastName').value  = last;
         document.getElementById('editPhone').value     = phone;
         document.getElementById('editEmail').value     = email;
-        document.getElementById('editFamilyName').value = family;
-        document.getElementById('editRole').value      = role;
         document.getElementById('editJoinDate').value  = joinDate;
         openModal('editModal');
     }
