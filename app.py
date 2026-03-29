@@ -1,5 +1,7 @@
-from flask import Flask, render_template, send_file, redirect, url_for, request, jsonify
-from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, seed_courts, seed_test_data
+# 'flash' added to 'from flask import' to allow alert boxes configured in Members.html - Added by Channing
+from flask import Flask, render_template, send_file, redirect, url_for, request, jsonify, flash
+# Added 'Banlog' and 'InactiveLog' to 'from database import' - Added by Channing
+from database import db, Member, Dues, Court, CourtBlock, Booking, Guest, BanLog, InactiveLog, seed_courts, seed_test_data
 import csv
 import os
 from datetime import datetime, date, timedelta, time
@@ -8,6 +10,20 @@ from datetime import datetime, date, timedelta, time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import atexit
+
+# Sanitization for member phone numbers - Added by Channing
+def sanitize_phone(phone):
+    cleaned = re.sub(r'[^\d+]', '', phone.strip())
+    if len(cleaned) < 7 or len(cleaned) > 20:
+        raise ValueError("Invalid phone number")
+    return cleaned
+
+# Sanitization for member names - Added by Channing
+def sanitize_name(name):
+    name = name.strip()
+    if not name or len(name) > 50:
+        raise ValueError("Invalid name")
+    return name
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sunset_courts.db'
@@ -557,6 +573,254 @@ def clear_backups():
         except OSError:
             pass
     return redirect(url_for('export'))
+
+
+# Members list + search - Added by Channing
+@app.route('/members')
+def members():
+    search_term   = request.args.get('search', '').strip()
+    status_filter = request.args.get('status_filter', 'all')
+
+    query = Member.query
+
+    # Search by phone or name
+    if search_term:
+        query = query.filter(
+            (Member.phone.ilike(f'%{search_term}%')) |
+            (Member.first_name.ilike(f'%{search_term}%')) |
+            (Member.last_name.ilike(f'%{search_term}%'))
+        )
+
+    # Filter by status
+    if status_filter == 'active':
+        query = query.filter_by(is_active=True, is_banned=False)
+    elif status_filter == 'inactive':
+        query = query.filter_by(is_active=False, is_banned=False)
+    elif status_filter == 'banned':
+        query = query.filter_by(is_banned=True)
+
+    members       = query.order_by(Member.last_name, Member.first_name).all()
+    all_members   = Member.query.order_by(Member.last_name).all()  # for JS edit modal
+
+    return render_template('members.html',
+                           members=members,
+                           all_members=all_members,
+                           search_term=search_term,
+                           status_filter=status_filter,
+                           today=date.today().isoformat())
+
+
+# Add a new member - Added by Channing
+@app.route('/members/add', methods=['POST'])
+def add_member():
+    try:
+        first_name  = sanitize_name(request.form.get('first_name', ''))
+        last_name   = sanitize_name(request.form.get('last_name', ''))
+        phone       = sanitize_phone(request.form.get('phone', ''))
+        email       = request.form.get('email', '').strip() or None
+        family_name = request.form.get('family_name', '').strip() or None
+        role        = request.form.get('role', 'member')
+        join_date_str = request.form.get('join_date', '')
+
+        # Parse join date
+        join_date = datetime.strptime(join_date_str, '%Y-%m-%d') if join_date_str else datetime.utcnow()
+
+        # Check phone is unique
+        if Member.query.filter_by(phone=phone).first():
+            flash('A member with that phone number already exists.', 'danger')
+            return redirect(url_for('members'))
+
+        if role not in ('member', 'volunteer'):
+            role = 'member'
+
+        new_member = Member(
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            email=email,
+            join_date=join_date,
+            family_name=family_name,
+            role=role,
+            is_active=True,
+            is_banned=False
+        )
+        db.session.add(new_member)
+        db.session.commit()
+        flash(f'{first_name} {last_name} added successfully.', 'success')
+
+    except ValueError as e:
+        flash(f'Invalid input: {e}', 'danger')
+    except Exception:
+        db.session.rollback()
+        flash('Something went wrong. Please try again.', 'danger')
+
+    return redirect(url_for('members'))
+
+
+# Edit a member - Added by Channing
+@app.route('/members/edit', methods=['POST'])
+def edit_member():
+    try:
+        member_id   = int(request.form.get('member_id'))
+        member      = Member.query.get_or_404(member_id)
+
+        first_name  = sanitize_name(request.form.get('first_name', ''))
+        last_name   = sanitize_name(request.form.get('last_name', ''))
+        phone       = sanitize_phone(request.form.get('phone', ''))
+        email       = request.form.get('email', '').strip() or None
+        family_name = request.form.get('family_name', '').strip() or None
+        role        = request.form.get('role', 'member')
+        join_date_str = request.form.get('join_date', '')
+
+        # Check phone uniqueness (allow same member to keep their number)
+        existing = Member.query.filter_by(phone=phone).first()
+        if existing and existing.id != member_id:
+            flash('That phone number belongs to another member.', 'danger')
+            return redirect(url_for('members'))
+
+        # Parse join date
+        if join_date_str:
+            member.join_date = datetime.strptime(join_date_str, '%Y-%m-%d')
+
+        member.first_name  = first_name
+        member.last_name   = last_name
+        member.phone       = phone           # Task 1
+        member.email       = email
+        member.family_name = family_name     # Task 5
+        member.role        = role if role in ('member', 'volunteer') else 'member'
+
+        db.session.commit()
+        flash(f'{first_name} {last_name} updated successfully.', 'success')
+
+    except ValueError as e:
+        flash(f'Invalid input: {e}', 'danger')
+    except Exception:
+        db.session.rollback()
+        flash('Something went wrong. Please try again.', 'danger')
+
+    return redirect(url_for('members'))
+
+
+# Ban a member (keeps data, logs reason) - Added by Channing
+@app.route('/members/ban', methods=['POST'])
+def ban_member():
+    try:
+        member_id  = int(request.form.get('member_id'))
+        ban_reason = request.form.get('ban_reason', '').strip()
+        banned_by  = request.form.get('banned_by', '').strip()
+
+        if not ban_reason or len(ban_reason) > 500:
+            flash('A valid ban reason is required.', 'danger')
+            return redirect(url_for('members'))
+
+        if not banned_by:
+            flash('Please enter who is recording this ban.', 'danger')
+            return redirect(url_for('members'))
+
+        member = Member.query.get_or_404(member_id)
+
+        # Flag as banned — data is kept, never deleted
+        member.is_banned  = True
+        member.is_active  = False
+        member.ban_reason = ban_reason
+        member.ban_date   = datetime.utcnow()
+
+        # Log the ban with full details
+        log = BanLog(
+            member_id=member_id,
+            ban_reason=ban_reason,
+            banned_by=banned_by
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash(f'{member.first_name} {member.last_name} has been banned.', 'warning')
+
+    except Exception:
+        db.session.rollback()
+        flash('Something went wrong. Please try again.', 'danger')
+
+    return redirect(url_for('members'))
+
+
+# View ban log for a member (AJAX) - Added by Channing
+@app.route('/members/ban-log/<int:member_id>')
+def get_ban_log(member_id):
+    logs = BanLog.query.filter_by(member_id=member_id)\
+                       .order_by(BanLog.banned_at.desc()).all()
+    return jsonify({
+        'logs': [{
+            'ban_reason': log.ban_reason,
+            'banned_by':  log.banned_by,
+            'banned_at':  log.banned_at.strftime('%m/%d/%Y %I:%M %p')
+        } for log in logs]
+    })
+
+
+# Deactivate a member (visual element + keeps data) - Added by Channing
+@app.route('/members/deactivate', methods=['POST'])
+def deactivate_member():
+    try:
+        member_id   = int(request.form.get('member_id'))
+        reason      = request.form.get('reason', '').strip()
+        recorded_by = request.form.get('recorded_by', '').strip()
+
+        if not reason or len(reason) > 500:
+            flash('A valid reason is required.', 'danger')
+            return redirect(url_for('members'))
+
+        if not recorded_by:
+            flash('Please enter who is recording this.', 'danger')
+            return redirect(url_for('members'))
+
+        member = Member.query.get_or_404(member_id)
+
+        # Close any current inactive reason
+        InactiveLog.query.filter_by(
+            member_id=member_id,
+            is_current=True
+        ).update({'is_current': False})
+
+        # Mark inactive — data is kept
+        member.is_active = False
+
+        log = InactiveLog(
+            member_id=member_id,
+            reason=reason,
+            recorded_by=recorded_by
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash(f'{member.first_name} {member.last_name} has been deactivated.', 'warning')
+
+    except Exception:
+        db.session.rollback()
+        flash('Something went wrong. Please try again.', 'danger')
+
+    return redirect(url_for('members'))
+
+
+# Reactivate a member (AJAX) - Added by Channing
+@app.route('/members/reactivate/<int:member_id>', methods=['POST'])
+def reactivate_member(member_id):
+    try:
+        member = Member.query.get_or_404(member_id)
+
+        if member.is_banned:
+            return jsonify({'error': 'Cannot reactivate a banned member'}), 400
+
+        # Close current inactive log entry
+        InactiveLog.query.filter_by(
+            member_id=member_id,
+            is_current=True
+        ).update({'is_current': False})
+
+        member.is_active = True
+        db.session.commit()
+        return jsonify({'success': True})
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'Something went wrong'}), 500
 
 
 if __name__ == '__main__':
