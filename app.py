@@ -620,6 +620,7 @@ def add_member():
         phone       = sanitize_phone(request.form.get('phone', ''))
         email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
+        family_name = request.form.get('family_name', '').strip() or None
 
         # Parse join date
         join_date = datetime.strptime(join_date_str, '%Y-%m-%d') if join_date_str else datetime.utcnow()
@@ -636,6 +637,7 @@ def add_member():
             phone=phone,
             email=email,
             join_date=join_date,
+            family_name=family_name,
             is_active=True,
             is_banned=False
         )
@@ -663,6 +665,7 @@ def edit_member():
         phone       = sanitize_phone(request.form.get('phone', ''))
         email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
+        family_name = request.form.get('family_name', '').strip() or None
 
         # Check phone uniqueness (allow same member to keep their number)
         existing = Member.query.filter_by(phone=phone).first()
@@ -679,6 +682,7 @@ def edit_member():
         member.phone       = phone
         member.email       = email
         member.role        = 'member'
+        member.family_name = family_name
 
         db.session.commit()
         flash(f'{first_name} {last_name} updated successfully.', 'success')
