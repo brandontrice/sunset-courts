@@ -623,6 +623,7 @@ def add_member():
 
         # Parse join date
         join_date = datetime.strptime(join_date_str, '%Y-%m-%d') if join_date_str else datetime.utcnow()
+        role = 'Member'
 
         # Check phone is unique
         if Member.query.filter_by(phone=phone).first():
@@ -675,8 +676,9 @@ def edit_member():
 
         member.first_name  = first_name
         member.last_name   = last_name
-        member.phone       = phone           # Task 1
+        member.phone       = phone
         member.email       = email
+        member.role        = 'member'
 
         db.session.commit()
         flash(f'{first_name} {last_name} updated successfully.', 'success')
