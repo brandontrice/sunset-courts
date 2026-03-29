@@ -425,11 +425,20 @@
         openModal('banLogModal');
 
         fetch('/members/ban-log/' + id)
-            .then(r => r.json())
-            .then(data => {
-                const list = document.getElementById('banLogList');
-                if (data.logs.length === 0) {
-                    list.innerHTML = '<li>No ban records found.</li>';
+    .then(r => r.json())
+    .then(data => {
+        const liftDisplay = document.getElementById('banLiftDateDisplay');
+        if (data.ban_lift_date) {
+            liftDisplay.textContent = 'Ban lifts automatically on: ' + data.ban_lift_date;
+            liftDisplay.style.color = '#cc6600';
+            liftDisplay.style.fontWeight = 'bold';
+        } else {
+            liftDisplay.textContent = 'This is a permanent ban.';
+            liftDisplay.style.color = '#cc0000';
+            liftDisplay.style.fontWeight = 'bold';
+        }
+        const list = document.getElementById('banLogList');
+        if (data.logs.length === 0) {
                 } else {
                     list.innerHTML = data.logs.map(log => `
                         <li>
