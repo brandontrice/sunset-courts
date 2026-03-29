@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Members – Sunset Courts</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        
+        /* Modal overlay: Full-screen backdrop that dims the background when a modal is open */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            z-index: 1000;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 60px;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        /* Container for the modal content, restricts height and ensures scrollability on smaller screens */
+        .modal {
+            background: #ffffff;
+            border: 3px solid #003366;
+            border-radius: 8px;
+            padding: 30px;
+            width: 100%;
+            max-width: 560px;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal h2 {
+            margin-bottom: 18px;
+        }
+        .modal-close {
+            position: absolute;
+            top: 14px; right: 18px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #003366;
+            font-weight: bold;
+            background: none;
+            border: none;
+        }
+        .modal-close:hover { color: #cc0000; }
+
+        /* Layout for the search input and dropdown filters */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .toolbar input[type="text"] {
+            width: auto;
+            flex: 1;
+            min-width: 200px;
+            margin: 0;
+        }
+        .toolbar select {
+            width: auto;
+            margin: 0;
+        }
+
+        /* Visual indicators for member status (Active, Inactive, and Banned) */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .badge-active   { background: #ccffcc; color: #006600; border: 1px solid #006600; }
+        .badge-inactive { background: #fff3cc; color: #cc6600; border: 1px solid #cc6600; }
+        .badge-banned   { background: #ffcccc; color: #cc0000; border: 1px solid #cc0000; }
+
+        /* Action buttons inside table — smaller */
+        .btn-sm {
+            padding: 7px 14px;
+            font-size: 15px;
+            margin: 2px;
+        }
+
+        /* Ban log list */
+        #banLogList li {
+            border-bottom: 1px solid #ccc;
+            padding: 8px 0;
+            font-size: 16px;
+        }
+        #banLogList li:last-child { border-bottom: none; }
+
+        .alert-warning {
+            background-color: #fff3cc;
+            border: 2px solid #cc6600;
+            color: #cc6600;
+        }
+    </style>
+</head>
+<body>
+
+<!-- * Global Navigation Bar * -->
+<nav class="navbar">
+    <a href="/">Home</a>
+    <a href="/members">Members</a>
+    <!-- Add other nav links here -->
+</nav>
+
+<!-- * Flash messages: Displays temporary feedback * -->
+<div class="container" style="padding-bottom:0;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- ** Main Header and Member Management Toolbar ** -->
+<div class="container">
+    <h1>Sunset Courts Members</h1>
+
+    <!-- Toolbar: search, filter, and add button -->
+    <form method="GET" action="/members" style="margin-bottom:0;">
+        <div class="toolbar">
+            <input type="text"
+                   name="search"
+                   placeholder="Search by name or phone..."
+                   value="{{ search_term }}">
+
+            <select name="status_filter">
+                <option value="all"      {% if status_filter == 'all'      %}selected{% endif %}>All Members</option>
+                <option value="active"   {% if status_filter == 'active'   %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="banned"   {% if status_filter == 'banned'   %}selected{% endif %}>Banned</option>
+            </select>
+
+            <button type="submit" class="btn">Search</button>
+            <a href="/members" class="btn">Clear</a>
+            <button type="button" class="btn" onclick="openModal('addModal')">+ Add Member</button>
+        </div>
+    </form>
+
+    <!-- * Members table * -->
+    {% if members %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Family</th>
+                <th>Join Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in members %}
+            <tr>
+                <td>{{ m.last_name }}, {{ m.first_name }}</td>
+                <td>{{ m.phone }}</td>
+                <td>{{ m.email or '—' }}</td>
+                <td>{{ m.role | capitalize }}</td>
+                <td>{{ m.family_name or '—' }}</td>
+                <td>{{ m.join_date.strftime('%m/%d/%Y') if m.join_date else '—' }}</td>
+                <td>
+                    {% if m.is_banned %}
+                        <span class="badge badge-banned">Banned</span>
+                    {% elif m.is_active %}
+                        <span class="badge badge-active">Active</span>
+                    {% else %}
+                        <span class="badge badge-inactive">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <!-- Edit -->
+                    <button class="btn btn-sm"
+                            onclick="openEditModal({{ m.id }}, '{{ m.first_name }}', '{{ m.last_name }}', '{{ m.phone }}', '{{ m.email or '' }}', '{{ m.family_name or '' }}', '{{ m.role }}', '{{ m.join_date.strftime('%Y-%m-%d') if m.join_date else '' }}')">
+                        Edit
+                    </button>
+
+                    <!-- Reactivate (only if inactive and not banned) -->
+                    {% if not m.is_active and not m.is_banned %}
+                        <button class="btn btn-sm"
+                                onclick="reactivateMember({{ m.id }}, this)">
+                            Reactivate
+                        </button>
+                    {% endif %}
+
+                    <!-- Deactivate (only if active and not banned) -->
+                    {% if m.is_active and not m.is_banned %}
+                        <button class="btn btn-sm"
+                                onclick="openDeactivateModal({{ m.id }}, '{{ m.first_name }} {{ m.last_name }}')">
+                            Deactivate
+                        </button>
+                    {% endif %}
+
+                    <!-- Ban (only if not already banned) -->
+                    {% if not m.is_banned %}
+                        <button class="btn btn-sm"
+                                onclick="openBanModal({{ m.id }}, '{{ m.first_name }} {{ m.last_name }}')">
+                            Ban
+                        </button>
+                    {% else %}
+                        <!-- View ban log -->
+                        <button class="btn btn-sm"
+                                onclick="viewBanLog({{ m.id }}, '{{ m.first_name }} {{ m.last_name }}')">
+                            Ban Log
+                        </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p style="margin-top:20px; font-size:18px;">No members found.</p>
+    {% endif %}
+</div>
+
+
+<!-- * Add Member Modal: Form for creating new records * -->
+<div class="modal-overlay" id="addModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('addModal')">&times;</button>
+        <h2>Add New Member</h2>
+       
+      <!-- Submit form to /members/add -->
+      <form method="POST" action="/members/add">
+            <label>First Name *</label>
+            <input type="text" name="first_name" required maxlength="50">
+
+            <label>Last Name *</label>
+            <input type="text" name="last_name" required maxlength="50">
+
+            <label>Phone (used as ID) *</label>
+            <input type="tel" name="phone" required placeholder="e.g. 5405551234">
+
+            <label>Email</label>
+            <input type="email" name="email" placeholder="Optional">
+
+            <label>Family Name</label>
+            <input type="text" name="family_name" placeholder="Optional – groups family accounts">
+
+            <label>Role</label>
+            <select name="role">
+                <option value="member">Member</option>
+                <option value="volunteer">Volunteer</option>
+            </select>
+
+            <label>Join Date</label>
+            <input type="date" name="join_date" value="{{ today }}">
+
+            <button type="submit" class="btn" style="margin-top:14px;">Add Member</button>
+            <button type="button" class="btn" style="margin-top:14px;" onclick="closeModal('addModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- * Edit Member Modal: Form for editing existing member * -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+        <h2>Edit Member</h2>
+
+        <!-- POSTs to /members/edit with member_id hidden field -->
+        <form method="POST" action="/members/edit">
+            <input type="hidden" name="member_id" id="editMemberId">
+
+            <label>First Name *</label>
+            <input type="text" name="first_name" id="editFirstName" required maxlength="50">
+
+            <label>Last Name *</label>
+            <input type="text" name="last_name" id="editLastName" required maxlength="50">
+
+            <label>Phone *</label>
+            <input type="tel" name="phone" id="editPhone" required>
+
+            <label>Email</label>
+            <input type="email" name="email" id="editEmail">
+
+            <label>Family Name</label>
+            <input type="text" name="family_name" id="editFamilyName">
+
+            <label>Role</label>
+            <select name="role" id="editRole">
+                <option value="member">Member</option>
+                <option value="volunteer">Volunteer</option>
+            </select>
+
+            <label>Join Date</label>
+            <input type="date" name="join_date" id="editJoinDate">
+
+            <button type="submit" class="btn" style="margin-top:14px;">Save Changes</button>
+            <button type="button" class="btn" style="margin-top:14px;" onclick="closeModal('editModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- * Ban Modal: Form for ban members accounts * -->
+<div class="modal-overlay" id="banModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('banModal')">&times;</button>
+        <h2>Ban Member</h2>
+        <p id="banMemberName" style="font-size:18px; font-weight:bold; margin-bottom:14px;"></p>
+
+        <!-- POSTs to /members/ban -->
+        <form method="POST" action="/members/ban">
+            <input type="hidden" name="member_id" id="banMemberId">
+
+            <label>Reason for Ban *</label>
+            <textarea name="ban_reason" rows="4" maxlength="500" required placeholder="Describe the reason for this ban..."></textarea>
+
+            <label>Recorded By *</label>
+            <input type="text" name="banned_by" required placeholder="Your name">
+
+            <button type="submit" class="btn" style="margin-top:14px;">Confirm Ban</button>
+            <button type="button" class="btn" style="margin-top:14px;" onclick="closeModal('banModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- * Deactivate Modal: Form for deactivateing member accounts * -->
+<div class="modal-overlay" id="deactivateModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('deactivateModal')">&times;</button>
+        <h2>Deactivate Member</h2>
+        <p id="deactivateMemberName" style="font-size:18px; font-weight:bold; margin-bottom:14px;"></p>
+
+        <!-- POSTs to /members/deactivate -->
+        <form method="POST" action="/members/deactivate">
+            <input type="hidden" name="member_id" id="deactivateMemberId">
+
+            <label>Reason *</label>
+            <textarea name="reason" rows="3" maxlength="500" required placeholder="e.g. Moving away, medical leave, etc."></textarea>
+
+            <label>Recorded By *</label>
+            <input type="text" name="recorded_by" required placeholder="Your name">
+
+            <button type="submit" class="btn" style="margin-top:14px;">Confirm Deactivation</button>
+            <button type="button" class="btn" style="margin-top:14px;" onclick="closeModal('deactivateModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- * Ban Log Modal: Displays record of past bans/reinstatements * -->
+<div class="modal-overlay" id="banLogModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('banLogModal')">&times;</button>
+        <h2>Ban History</h2>
+        <p id="banLogMemberName" style="font-size:18px; font-weight:bold; margin-bottom:14px;"></p>
+
+        <!-- banLogList is filled with <li> items generated in JavaScript -->
+        <ul id="banLogList" style="list-style:none; padding:0;"></ul>
+    </div>
+</div>
+
+
+<!-- ** JavaScript ** -->
+<script>
+  
+    // * Modal UI Controls *
+
+    // Toggles the visibility of a modal by adding the CSS '.active' class
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+    }
+
+    // Removes the '.active' class to hide the modal
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    // Close modal when clicking in the darkened area outside of the form
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) closeModal(this.id);
+        });
+    });
+
+    // * Form Population Logic *
+  
+    // Pre-fills the Edit Modal with existing member data before showing it
+    function openEditModal(id, first, last, phone, email, family, role, joinDate) {
+        document.getElementById('editMemberId').value  = id;
+        document.getElementById('editFirstName').value = first;
+        document.getElementById('editLastName').value  = last;
+        document.getElementById('editPhone').value     = phone;
+        document.getElementById('editEmail').value     = email;
+        document.getElementById('editFamilyName').value = family;
+        document.getElementById('editRole').value      = role;
+        document.getElementById('editJoinDate').value  = joinDate;
+        openModal('editModal');
+    }
+
+    // Sets up the Ban Modal with the specific member's ID and Name
+    function openBanModal(id, name) {
+        document.getElementById('banMemberId').value = id;
+        document.getElementById('banMemberName').textContent = name;
+        openModal('banModal');
+    }
+
+    // Sets up the Deactivate Modal with the specific member's ID and Name
+    function openDeactivateModal(id, name) {
+        document.getElementById('deactivateMemberId').value = id;
+        document.getElementById('deactivateMemberName').textContent = name;
+        openModal('deactivateModal');
+    }
+
+    // * Backend Interations (AJAX) *
+
+    // Sends a POST request to reactivate a member and refreshes the page on success
+    function reactivateMember(id, btn) {
+        if (!confirm('Reactivate this member?')) return;
+        fetch('/members/reactivate/' + id, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Could not reactivate member.'));
+                }
+            })
+            .catch(() => alert('Network error. Please try again.'));
+    }
+
+    // Fetches ban history JSON and dynamically builds a list inside the Ban Log Modal
+    function viewBanLog(id, name) {
+        document.getElementById('banLogMemberName').textContent = name;
+        document.getElementById('banLogList').innerHTML = '<li>Loading...</li>';
+        openModal('banLogModal');
+
+        fetch('/members/ban-log/' + id)
+            .then(r => r.json())
+            .then(data => {
+                const list = document.getElementById('banLogList');
+                if (data.logs.length === 0) {
+                    list.innerHTML = '<li>No ban records found.</li>';
+                } else {
+                    list.innerHTML = data.logs.map(log => `
+                        <li>
+                            <strong>Date:</strong> ${log.banned_at}<br>
+                            <strong>Reason:</strong> ${log.ban_reason}<br>
+                            <strong>Recorded by:</strong> ${log.banned_by}
+                        </li>
+                    `).join('');
+                }
+            })
+            .catch(() => {
+                document.getElementById('banLogList').innerHTML = '<li>Error loading ban log.</li>';
+            });
+    }
+</script>
+
+</body>
+</html>
