@@ -618,9 +618,7 @@ def add_member():
         first_name  = sanitize_name(request.form.get('first_name', ''))
         last_name   = sanitize_name(request.form.get('last_name', ''))
         phone       = sanitize_phone(request.form.get('phone', ''))
-        email       = request.form.get('email', '').strip() or None
-        family_name = request.form.get('family_name', '').strip() or None
-        role        = request.form.get('role', 'member')
+        email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
 
         # Parse join date
@@ -668,9 +666,7 @@ def edit_member():
         first_name  = sanitize_name(request.form.get('first_name', ''))
         last_name   = sanitize_name(request.form.get('last_name', ''))
         phone       = sanitize_phone(request.form.get('phone', ''))
-        email       = request.form.get('email', '').strip() or None
-        family_name = request.form.get('family_name', '').strip() or None
-        role        = request.form.get('role', 'member')
+        email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
 
         # Check phone uniqueness (allow same member to keep their number)
