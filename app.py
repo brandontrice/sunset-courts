@@ -629,9 +629,6 @@ def add_member():
             flash('A member with that phone number already exists.', 'danger')
             return redirect(url_for('members'))
 
-        if role not in ('member', 'volunteer'):
-            role = 'member'
-
         new_member = Member(
             first_name=first_name,
             last_name=last_name,
