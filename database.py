@@ -190,6 +190,9 @@ def seed_test_data():
                    email='sarah@email.com', role='volunteer'),
             Member(first_name='Mike', last_name='Brown', phone='5405555555',
                    email='mike@email.com', role='member'),
+            # Duplicate phone — used to test multi-match member selection on booking
+            Member(first_name='Carol', last_name='Smith', phone='5401111111',
+                   email='carol@email.com', role='member'),
         ]
         for m in test_members:
             db.session.add(m)
