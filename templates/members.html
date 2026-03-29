@@ -302,6 +302,10 @@
             <label>Recorded By *</label>
             <input type="text" name="banned_by" required placeholder="Your name">
 
+            <!-- Leave blank for a permanent ban — if filled the ban will lift automatically on that date -->
+            <label>Ban End Date (leave blank for permanent)</label>
+            <input type="date" name="ban_lift_date">
+
             <button type="submit" class="btn" style="margin-top:14px;">Confirm Ban</button>
             <button type="button" class="btn" style="margin-top:14px;" onclick="closeModal('banModal')">Cancel</button>
         </form>
@@ -339,7 +343,8 @@
         <button class="modal-close" onclick="closeModal('banLogModal')">&times;</button>
         <h2>Ban History</h2>
         <p id="banLogMemberName" style="font-size:18px; font-weight:bold; margin-bottom:14px;"></p>
-
+        <!-- Ban lift date shown here if this is a temporary ban -->
+        <p id="banLiftDateDisplay" style="font-size:16px; margin-bottom:14px;"></p>
         <!-- banLogList is filled with <li> items generated in JavaScript -->
         <ul id="banLogList" style="list-style:none; padding:0;"></ul>
     </div>
