@@ -409,15 +409,25 @@ def booking():
 
 @app.route('/member/by-phone/<phone>')
 def get_member(phone):
-    member = Member.query.filter_by(phone=phone).first()
-    if not member or not member.is_active or member.is_banned:
-        return jsonify({'error': 'Member not found or not eligible'}), 404
-    return jsonify({
-        'id': member.id,
-        'name': f'{member.first_name} {member.last_name}',
-        'email': member.email,
-        'role': member.role
-    })
+    members = Member.query.filter_by(phone=phone).all()
+    if not members:
+        return jsonify({'error': 'No member found with that phone number.'}), 404
+
+    results = []
+    for m in members:
+        if not m.is_active or m.is_banned:
+            continue
+        results.append({
+            'id': m.id,
+            'name': f'{m.first_name} {m.last_name}',
+            'email': m.email,
+            'role': m.role
+        })
+
+    if not results:
+        return jsonify({'error': 'Member found but not eligible to book (inactive or banned).'}), 404
+
+    return jsonify({'members': results})
 
 
 @app.route('/bookings/add', methods=['POST'])
