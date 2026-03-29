@@ -724,6 +724,11 @@ def ban_member():
             if ban_lift_date_str else None
         )
 
+        # Reject ban lift dates in the past
+        if member.ban_lift_date and member.ban_lift_date.date() <= date.today():
+            flash('Ban end date must be in the future.', 'danger')
+            return redirect(url_for('members'))
+
         # Log the ban with full details
         log = BanLog(
             member_id=member_id,
