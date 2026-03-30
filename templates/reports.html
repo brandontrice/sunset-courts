@@ -1,0 +1,585 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  /* ── Page layout ─────────────────────────────────────────────── */
+  .reports-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-top: 24px;
+  }
+  .report-card {
+    background: #fff;
+    border: 2px solid #003366;
+    border-radius: 8px;
+    padding: 24px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  /* Full-width cards span both columns */
+  .report-card.full-width {
+    grid-column: 1 / -1;
+  }
+  .report-card h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #003366;
+    margin: 0 0 4px;
+    border-bottom: 2px solid #003366;
+    padding-bottom: 8px;
+  }
+  .report-card .user-story {
+    font-size: 12px;
+    color: #666;
+    margin: -10px 0 4px;
+    font-style: italic;
+  }
+
+  /* ── Controls row ────────────────────────────────────────────── */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .controls select,
+  .controls input[type="number"] {
+    width: auto;
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .controls button {
+    padding: 7px 18px;
+    font-size: 14px;
+  }
+
+  /* ── Stat highlight ──────────────────────────────────────────── */
+  .stat-highlight {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .stat-number {
+    font-size: 52px;
+    font-weight: 800;
+    color: #003366;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 16px;
+    color: #555;
+  }
+  .stat-sub {
+    font-size: 14px;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  /* ── Bar chart ───────────────────────────────────────────────── */
+  .bar-chart-wrap {
+    width: 100%;
+    overflow-x: auto;
+  }
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 160px;
+    padding-bottom: 28px; /* space for labels */
+    position: relative;
+    min-width: 0;
+  }
+  .bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    height: 100%;
+    justify-content: flex-end;
+    position: relative;
+    min-width: 28px;
+  }
+  .bar-col .bar {
+    width: 100%;
+    background: #003366;
+    border-radius: 4px 4px 0 0;
+    transition: background 0.15s;
+    position: relative;
+    min-height: 2px;
+  }
+  .bar-col .bar:hover {
+    background: #0055aa;
+  }
+  .bar-col .bar-val {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #003366;
+    white-space: nowrap;
+  }
+  .bar-col .bar-lbl {
+    position: absolute;
+    bottom: -26px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #444;
+    white-space: nowrap;
+  }
+  /* highlight the tallest bar */
+  .bar-col.peak .bar {
+    background: #cc6600;
+  }
+  .bar-col.peak .bar-val,
+  .bar-col.peak .bar-lbl {
+    color: #cc6600;
+    font-weight: 700;
+  }
+
+  /* ── Table style for member/court lists ──────────────────────── */
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+  .report-table th {
+    text-align: left;
+    padding: 6px 10px;
+    background: #003366;
+    color: #fff;
+    font-size: 13px;
+  }
+  .report-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #dde;
+  }
+  .report-table tr:last-child td { border-bottom: none; }
+  .report-table tr:nth-child(even) td { background: #f5f7ff; }
+  .rank-bar {
+    display: inline-block;
+    height: 10px;
+    background: #003366;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+    transition: width 0.3s;
+  }
+
+  /* ── Loading / empty states ──────────────────────────────────── */
+  .report-placeholder {
+    color: #999;
+    font-size: 15px;
+    font-style: italic;
+    text-align: center;
+    padding: 24px 0;
+  }
+  .loading-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 3px solid #ccc;
+    border-top-color: #003366;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 760px) {
+    .reports-grid { grid-template-columns: 1fr; }
+    .report-card.full-width { grid-column: 1; }
+  }
+</style>
+
+<h1>Reports</h1>
+<p style="color:#555; margin-top:-6px; margin-bottom:4px;">
+  All figures exclude cancelled bookings.
+</p>
+
+<div class="reports-grid">
+
+  <!-- ══════════════════════════════════════════════════════════
+       US-30-122  Monthly Total Bookings
+       ══════════════════════════════════════════════════════════ -->
+  <div class="report-card">
+    <div>
+      <h2>Monthly Total Bookings</h2>
+      <div class="user-story">US-30-122</div>
+    </div>
+
+    <div class="controls">
+      <select id="mt-month">
+        {% for i in range(1, 13) %}
+          <option value="{{ i }}"
+            {% if i == current_month %}selected{% endif %}>
+            {{ ['','January','February','March','April','May','June',
+                 'July','August','September','October','November','December'][i] }}
+          </option>
+        {% endfor %}
+      </select>
+      <input type="number" id="mt-year" value="{{ current_year }}"
+             min="2020" max="2099" style="width:80px;">
+      <button class="btn" onclick="loadMonthlyTotal()">Run</button>
+    </div>
+
+    <div id="mt-result">
+      <p class="report-placeholder">Select a month and click Run.</p>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       US-30-128  Full-Year Total Bookings
+       ══════════════════════════════════════════════════════════ -->
+  <div class="report-card">
+    <div>
+      <h2>Full-Year Bookings</h2>
+      <div class="user-story">US-30-128</div>
+    </div>
+
+    <div class="controls">
+      <input type="number" id="yr-year" value="{{ current_year }}"
+             min="2020" max="2099" style="width:80px;">
+      <button class="btn" onclick="loadYearlyTotal()">Run</button>
+    </div>
+
+    <div id="yr-result">
+      <p class="report-placeholder">Select a year and click Run.</p>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       US-30-126  Busiest Hours of the Day
+       ══════════════════════════════════════════════════════════ -->
+  <div class="report-card full-width">
+    <div>
+      <h2>Busiest Hours of the Day</h2>
+      <div class="user-story">US-30-126</div>
+    </div>
+
+    <div class="controls">
+      <input type="number" id="bh-year" value="{{ current_year }}"
+             min="2020" max="2099" style="width:80px;">
+      <button class="btn" onclick="loadBusiestHours()">Run</button>
+    </div>
+
+    <div id="bh-result">
+      <p class="report-placeholder">Select a year and click Run.</p>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       US-30-124  Monthly Bookings Per Court
+       ══════════════════════════════════════════════════════════ -->
+  <div class="report-card">
+    <div>
+      <h2>Bookings Per Court</h2>
+      <div class="user-story">US-30-124</div>
+    </div>
+
+    <div class="controls">
+      <select id="bc-month">
+        {% for i in range(1, 13) %}
+          <option value="{{ i }}"
+            {% if i == current_month %}selected{% endif %}>
+            {{ ['','January','February','March','April','May','June',
+                 'July','August','September','October','November','December'][i] }}
+          </option>
+        {% endfor %}
+      </select>
+      <input type="number" id="bc-year" value="{{ current_year }}"
+             min="2020" max="2099" style="width:80px;">
+      <button class="btn" onclick="loadBookingsPerCourt()">Run</button>
+    </div>
+
+    <div id="bc-result">
+      <p class="report-placeholder">Select a month and click Run.</p>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       US-30-123  Monthly Bookings Per Member
+       ══════════════════════════════════════════════════════════ -->
+  <div class="report-card">
+    <div>
+      <h2>Bookings Per Member</h2>
+      <div class="user-story">US-30-123</div>
+    </div>
+
+    <div class="controls">
+      <select id="bm-month">
+        {% for i in range(1, 13) %}
+          <option value="{{ i }}"
+            {% if i == current_month %}selected{% endif %}>
+            {{ ['','January','February','March','April','May','June',
+                 'July','August','September','October','November','December'][i] }}
+          </option>
+        {% endfor %}
+      </select>
+      <input type="number" id="bm-year" value="{{ current_year }}"
+             min="2020" max="2099" style="width:80px;">
+      <button class="btn" onclick="loadBookingsPerMember()">Run</button>
+    </div>
+
+    <div id="bm-result">
+      <p class="report-placeholder">Select a month and click Run.</p>
+    </div>
+  </div>
+
+</div><!-- /reports-grid -->
+
+
+<!-- ── JavaScript ─────────────────────────────────────────────────────── -->
+<script>
+
+  // ── Shared helpers ────────────────────────────────────────────
+
+  function setLoading(elId) {
+    document.getElementById(elId).innerHTML =
+      '<p class="report-placeholder"><span class="loading-spinner"></span>Loading…</p>';
+  }
+
+  function setError(elId, msg) {
+    document.getElementById(elId).innerHTML =
+      `<p class="report-placeholder" style="color:#cc0000;">${msg}</p>`;
+  }
+
+  /**
+   * Renders a horizontal bar chart into elId.
+   * items: [ { label, value } ]
+   * peakIndex: index of the item to highlight (optional)
+   */
+  function renderBarChart(elId, items, peakIndex) {
+    const maxVal = Math.max(...items.map(i => i.value), 1);
+    const cols = items.map((item, idx) => {
+      const pct = (item.value / maxVal) * 100;
+      const isPeak = (idx === peakIndex);
+      return `
+        <div class="bar-col ${isPeak ? 'peak' : ''}">
+          <div class="bar" style="height:${pct}%;">
+            ${item.value > 0 ? `<span class="bar-val">${item.value}</span>` : ''}
+          </div>
+          <span class="bar-lbl">${item.label}</span>
+        </div>`;
+    }).join('');
+
+    document.getElementById(elId).innerHTML =
+      `<div class="bar-chart-wrap"><div class="bar-chart">${cols}</div></div>`;
+  }
+
+  /**
+   * Renders a ranked table with inline proportion bars.
+   * rows: [ { label, value } ]
+   */
+  function renderRankedTable(elId, rows, colHeader) {
+    if (rows.length === 0) {
+      document.getElementById(elId).innerHTML =
+        '<p class="report-placeholder">No bookings found for this period.</p>';
+      return;
+    }
+    const maxVal = Math.max(...rows.map(r => r.value), 1);
+    const trs = rows.map((r, idx) => {
+      const barWidth = Math.round((r.value / maxVal) * 120);
+      return `<tr>
+        <td style="color:#888; width:30px;">${idx + 1}</td>
+        <td>${r.label}</td>
+        <td>
+          <span class="rank-bar" style="width:${barWidth}px;"></span>
+          <strong>${r.value}</strong>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById(elId).innerHTML = `
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>${colHeader}</th>
+            <th>Bookings</th>
+          </tr>
+        </thead>
+        <tbody>${trs}</tbody>
+      </table>`;
+  }
+
+
+  // ── US-30-122  Monthly Total ──────────────────────────────────
+
+  async function loadMonthlyTotal() {
+    const month = document.getElementById('mt-month').value;
+    const year  = document.getElementById('mt-year').value;
+    setLoading('mt-result');
+
+    try {
+      const res  = await fetch(`/reports/monthly-total?year=${year}&month=${month}`);
+      const data = await res.json();
+
+      document.getElementById('mt-result').innerHTML = `
+        <div class="stat-highlight">
+          <span class="stat-number">${data.total}</span>
+          <span class="stat-label">bookings</span>
+        </div>
+        <div class="stat-sub">${data.month_name} ${data.year}</div>`;
+    } catch(e) {
+      setError('mt-result', 'Failed to load report. Please try again.');
+    }
+  }
+
+
+  // ── US-30-128  Full-Year Total ────────────────────────────────
+
+  async function loadYearlyTotal() {
+    const year = document.getElementById('yr-year').value;
+    setLoading('yr-result');
+
+    try {
+      const res  = await fetch(`/reports/yearly-total?year=${year}`);
+      const data = await res.json();
+
+      const peakIdx = data.months.reduce(
+        (best, m, i, arr) => m.total > arr[best].total ? i : best, 0
+      );
+
+      const items = data.months.map(m => ({ label: m.month_name, value: m.total }));
+
+      // Build chart then prepend the total stat
+      const wrap = document.getElementById('yr-result');
+      wrap.innerHTML = `
+        <div class="stat-highlight">
+          <span class="stat-number">${data.yearly_total}</span>
+          <span class="stat-label">total bookings in ${data.year}</span>
+        </div>`;
+
+      const chartDiv = document.createElement('div');
+      chartDiv.id = 'yr-chart';
+      wrap.appendChild(chartDiv);
+      renderBarChart('yr-chart', items, peakIdx);
+
+      // Add peak callout
+      const peak = data.months[peakIdx];
+      if (peak.total > 0) {
+        const note = document.createElement('div');
+        note.className = 'stat-sub';
+        note.style.color = '#cc6600';
+        note.textContent = `Peak month: ${peak.month_name} (${peak.total} bookings)`;
+        wrap.appendChild(note);
+      }
+
+    } catch(e) {
+      setError('yr-result', 'Failed to load report. Please try again.');
+    }
+  }
+
+
+  // ── US-30-126  Busiest Hours ──────────────────────────────────
+
+  async function loadBusiestHours() {
+    const year = document.getElementById('bh-year').value;
+    setLoading('bh-result');
+
+    try {
+      const res  = await fetch(`/reports/busiest-hours?year=${year}`);
+      const data = await res.json();
+
+      const peakIdx = data.peak
+        ? data.hours.findIndex(h => h.hour === data.peak.hour)
+        : -1;
+
+      const items = data.hours.map(h => ({ label: h.label, value: h.total }));
+
+      const wrap = document.getElementById('bh-result');
+      wrap.innerHTML = '';
+
+      if (data.peak && data.peak.total > 0) {
+        const note = document.createElement('div');
+        note.className = 'stat-sub';
+        note.style.marginBottom = '12px';
+        note.innerHTML =
+          `Peak hour: <strong style="color:#cc6600;">${data.peak.label}</strong>` +
+          ` — ${data.peak.total} booking slot${data.peak.total !== 1 ? 's' : ''}`;
+        wrap.appendChild(note);
+      }
+
+      const chartDiv = document.createElement('div');
+      chartDiv.id = 'bh-chart';
+      wrap.appendChild(chartDiv);
+      renderBarChart('bh-chart', items, peakIdx);
+
+    } catch(e) {
+      setError('bh-result', 'Failed to load report. Please try again.');
+    }
+  }
+
+
+  // ── US-30-124  Bookings Per Court ─────────────────────────────
+
+  async function loadBookingsPerCourt() {
+    const month = document.getElementById('bc-month').value;
+    const year  = document.getElementById('bc-year').value;
+    setLoading('bc-result');
+
+    try {
+      const res  = await fetch(`/reports/bookings-per-court?year=${year}&month=${month}`);
+      const data = await res.json();
+
+      const header = `${data.month_name} ${data.year}`;
+      const rows = data.courts.map(c => ({
+        label: `Court ${c.court_number}`,
+        value: c.total
+      }));
+
+      // Show month/year above the table
+      document.getElementById('bc-result').innerHTML =
+        `<div class="stat-sub" style="margin-bottom:10px;">${header}</div>
+         <div id="bc-table"></div>`;
+
+      renderRankedTable('bc-table', rows, 'Court');
+
+    } catch(e) {
+      setError('bc-result', 'Failed to load report. Please try again.');
+    }
+  }
+
+
+  // ── US-30-123  Bookings Per Member ────────────────────────────
+
+  async function loadBookingsPerMember() {
+    const month = document.getElementById('bm-month').value;
+    const year  = document.getElementById('bm-year').value;
+    setLoading('bm-result');
+
+    try {
+      const res  = await fetch(`/reports/bookings-per-member?year=${year}&month=${month}`);
+      const data = await res.json();
+
+      const header = `${data.month_name} ${data.year}`;
+      const rows = data.members.map(m => ({
+        label: m.name,
+        value: m.total
+      }));
+
+      document.getElementById('bm-result').innerHTML =
+        `<div class="stat-sub" style="margin-bottom:10px;">${header}</div>
+         <div id="bm-table"></div>`;
+
+      renderRankedTable('bm-table', rows, 'Member');
+
+    } catch(e) {
+      setError('bm-result', 'Failed to load report. Please try again.');
+    }
+  }
+
+</script>
+
+{% endblock %}
