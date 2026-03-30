@@ -185,8 +185,17 @@
                 </td>
                 <td>
                     <!-- Edit -->
+                    <!-- FIX: Added family_name as 6th argument to match the corrected JS function signature -->
                     <button class="btn btn-sm"
-                            onclick="openEditModal({{ m.id }}, '{{ m.first_name }}', '{{ m.last_name }}', '{{ m.phone }}', '{{ m.email or '' }}', '{{ m.family_name or '' }}', '{{ m.join_date.strftime('%Y-%m-%d') if m.join_date else '' }}')">
+                            onclick="openEditModal(
+                                {{ m.id }},
+                                '{{ m.first_name }}',
+                                '{{ m.last_name }}',
+                                '{{ m.phone }}',
+                                '{{ m.email or '' }}',
+                                '{{ m.family_name or '' }}',
+                                '{{ m.join_date.strftime('%Y-%m-%d') if m.join_date else '' }}'
+                            )">
                         Edit
                     </button>
 
@@ -284,6 +293,10 @@
 
             <label>Email *</label>
             <input type="email" name="email" id="editEmail" required>
+
+            <!-- FIX: Added the family_name field that was missing from the edit modal form -->
+            <label>Family Name</label>
+            <input type="text" name="family_name" id="editFamilyName" placeholder="Optional – groups family accounts">
 
             <label>Join Date</label>
             <input type="date" name="join_date" id="editJoinDate">
@@ -383,16 +396,19 @@
     });
 
     // * Form Population Logic *
-  
-    // Pre-fills the Edit Modal with existing member data before showing it
-    function openEditModal(id, first, last, phone, email, joinDate) {
-        document.getElementById('editMemberId').value  = id;
-        document.getElementById('editFirstName').value = first;
-        document.getElementById('editLastName').value  = last;
-        document.getElementById('editPhone').value     = phone;
-        document.getElementById('editEmail').value     = email;
-        document.getElementById('editFamilyName').value  = family;
-        document.getElementById('editJoinDate').value  = joinDate;
+
+    // FIX: Added family_name as the 6th parameter (was missing entirely).
+    // Previously the function only accepted 6 args but the body referenced
+    // an undefined variable `family`, which threw a ReferenceError and broke
+    // the entire members page JS when any Edit button was clicked.
+    function openEditModal(id, first, last, phone, email, family_name, joinDate) {
+        document.getElementById('editMemberId').value    = id;
+        document.getElementById('editFirstName').value   = first;
+        document.getElementById('editLastName').value    = last;
+        document.getElementById('editPhone').value       = phone;
+        document.getElementById('editEmail').value       = email;
+        document.getElementById('editFamilyName').value  = family_name;  // FIX: was `family` (undefined)
+        document.getElementById('editJoinDate').value    = joinDate;
         openModal('editModal');
     }
 
@@ -411,7 +427,7 @@
         openModal('deactivateModal');
     }
 
-    // * Backend Interations (AJAX) *
+    // * Backend Interactions (AJAX) *
 
     // Sends a POST request to reactivate a member and refreshes the page on success
     function reactivateMember(id, btn) {
@@ -435,20 +451,21 @@
         openModal('banLogModal');
 
         fetch('/members/ban-log/' + id)
-    .then(r => r.json())
-    .then(data => {
-        const liftDisplay = document.getElementById('banLiftDateDisplay');
-        if (data.ban_lift_date) {
-            liftDisplay.textContent = 'Ban lifts automatically on: ' + data.ban_lift_date;
-            liftDisplay.style.color = '#cc6600';
-            liftDisplay.style.fontWeight = 'bold';
-        } else {
-            liftDisplay.textContent = 'This is a permanent ban.';
-            liftDisplay.style.color = '#cc0000';
-            liftDisplay.style.fontWeight = 'bold';
-        }
-        const list = document.getElementById('banLogList');
-        if (data.logs.length === 0) {
+            .then(r => r.json())
+            .then(data => {
+                const liftDisplay = document.getElementById('banLiftDateDisplay');
+                if (data.ban_lift_date) {
+                    liftDisplay.textContent = 'Ban lifts automatically on: ' + data.ban_lift_date;
+                    liftDisplay.style.color = '#cc6600';
+                    liftDisplay.style.fontWeight = 'bold';
+                } else {
+                    liftDisplay.textContent = 'This is a permanent ban.';
+                    liftDisplay.style.color = '#cc0000';
+                    liftDisplay.style.fontWeight = 'bold';
+                }
+                const list = document.getElementById('banLogList');
+                if (data.logs.length === 0) {
+                    list.innerHTML = '<li>No ban records found.</li>';
                 } else {
                     list.innerHTML = data.logs.map(log => `
                         <li>
