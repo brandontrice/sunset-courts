@@ -700,7 +700,7 @@ def add_member():
         phone       = sanitize_phone(request.form.get('phone', ''))
         email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
-        family_name = request.form.get('family_name', '').strip() or None
+        family_name = last_name
 
         # Parse join date
         join_date = datetime.strptime(join_date_str, '%Y-%m-%d') if join_date_str else datetime.utcnow()
@@ -745,7 +745,7 @@ def edit_member():
         phone       = sanitize_phone(request.form.get('phone', ''))
         email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
-        family_name = request.form.get('family_name', '').strip() or None
+        family_name = last_name
 
         # Check phone uniqueness (allow same member to keep their number)
         existing = Member.query.filter_by(phone=phone).first()
