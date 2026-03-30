@@ -30,12 +30,6 @@
     border-bottom: 2px solid #003366;
     padding-bottom: 8px;
   }
-  .report-card .user-story {
-    font-size: 12px;
-    color: #666;
-    margin: -10px 0 4px;
-    font-style: italic;
-  }
 
   /* ── Controls row ────────────────────────────────────────────── */
   .controls {
@@ -206,12 +200,11 @@
 <div class="reports-grid">
 
   <!-- ══════════════════════════════════════════════════════════
-       US-30-122  Monthly Total Bookings
+       Monthly Total Bookings
        ══════════════════════════════════════════════════════════ -->
   <div class="report-card">
     <div>
       <h2>Monthly Total Bookings</h2>
-      <div class="user-story">US-30-122</div>
     </div>
 
     <div class="controls">
@@ -236,12 +229,11 @@
 
 
   <!-- ══════════════════════════════════════════════════════════
-       US-30-128  Full-Year Total Bookings
+       Full-Year Total Bookings
        ══════════════════════════════════════════════════════════ -->
   <div class="report-card">
     <div>
       <h2>Full-Year Bookings</h2>
-      <div class="user-story">US-30-128</div>
     </div>
 
     <div class="controls">
@@ -257,12 +249,11 @@
 
 
   <!-- ══════════════════════════════════════════════════════════
-       US-30-126  Busiest Hours of the Day
+       Busiest Hours of the Day
        ══════════════════════════════════════════════════════════ -->
   <div class="report-card full-width">
     <div>
       <h2>Busiest Hours of the Day</h2>
-      <div class="user-story">US-30-126</div>
     </div>
 
     <div class="controls">
@@ -278,12 +269,11 @@
 
 
   <!-- ══════════════════════════════════════════════════════════
-       US-30-124  Monthly Bookings Per Court
+       Monthly Bookings Per Court
        ══════════════════════════════════════════════════════════ -->
   <div class="report-card">
     <div>
       <h2>Bookings Per Court</h2>
-      <div class="user-story">US-30-124</div>
     </div>
 
     <div class="controls">
@@ -308,12 +298,11 @@
 
 
   <!-- ══════════════════════════════════════════════════════════
-       US-30-123  Monthly Bookings Per Member
+       Monthly Bookings Per Member
        ══════════════════════════════════════════════════════════ -->
   <div class="report-card">
     <div>
       <h2>Bookings Per Member</h2>
-      <div class="user-story">US-30-123</div>
     </div>
 
     <div class="controls">
@@ -355,7 +344,7 @@
   }
 
   /**
-   * Renders a horizontal bar chart into elId.
+   * Renders a bar chart into elId.
    * items: [ { label, value } ]
    * peakIndex: index of the item to highlight (optional)
    */
@@ -414,7 +403,7 @@
   }
 
 
-  // ── US-30-122  Monthly Total ──────────────────────────────────
+  // ── Monthly Total ─────────────────────────────────────────────
 
   async function loadMonthlyTotal() {
     const month = document.getElementById('mt-month').value;
@@ -437,7 +426,7 @@
   }
 
 
-  // ── US-30-128  Full-Year Total ────────────────────────────────
+  // ── Full-Year Total ───────────────────────────────────────────
 
   async function loadYearlyTotal() {
     const year = document.getElementById('yr-year').value;
@@ -453,7 +442,6 @@
 
       const items = data.months.map(m => ({ label: m.month_name, value: m.total }));
 
-      // Build chart then prepend the total stat
       const wrap = document.getElementById('yr-result');
       wrap.innerHTML = `
         <div class="stat-highlight">
@@ -466,7 +454,6 @@
       wrap.appendChild(chartDiv);
       renderBarChart('yr-chart', items, peakIdx);
 
-      // Add peak callout
       const peak = data.months[peakIdx];
       if (peak.total > 0) {
         const note = document.createElement('div');
@@ -482,7 +469,7 @@
   }
 
 
-  // ── US-30-126  Busiest Hours ──────────────────────────────────
+  // ── Busiest Hours ─────────────────────────────────────────────
 
   async function loadBusiestHours() {
     const year = document.getElementById('bh-year').value;
@@ -522,7 +509,7 @@
   }
 
 
-  // ── US-30-124  Bookings Per Court ─────────────────────────────
+  // ── Bookings Per Court ────────────────────────────────────────
 
   async function loadBookingsPerCourt() {
     const month = document.getElementById('bc-month').value;
@@ -539,7 +526,6 @@
         value: c.total
       }));
 
-      // Show month/year above the table
       document.getElementById('bc-result').innerHTML =
         `<div class="stat-sub" style="margin-bottom:10px;">${header}</div>
          <div id="bc-table"></div>`;
@@ -552,7 +538,7 @@
   }
 
 
-  // ── US-30-123  Bookings Per Member ────────────────────────────
+  // ── Bookings Per Member ───────────────────────────────────────
 
   async function loadBookingsPerMember() {
     const month = document.getElementById('bm-month').value;
