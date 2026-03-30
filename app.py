@@ -460,9 +460,14 @@ def booking():
     return render_template('booking.html', courts=courts)
 
 
-# FIX: Added missing return statement so the route actually sends a response.
+# FIX 1: Added missing return statement so the route actually sends a response.
 # Previously the function built `results` but never returned it, causing Flask
 # to return None → 500 error → booking lookup appeared to do nothing.
+# FIX 2: NULL-safe active/banned check. SQLAlchemy column defaults (is_active=True,
+# is_banned=False) only fire on INSERT. If the DB was created before those defaults
+# existed, existing rows may have NULL stored. In Python, `not None` is True, so
+# a member with NULL is_active was incorrectly treated as inactive and skipped.
+# We now treat NULL is_active as True (active) and NULL is_banned as False (not banned).
 @app.route('/member/by-phone/<phone>')
 def get_member(phone):
     members = Member.query.filter_by(phone=phone).all()
@@ -471,7 +476,9 @@ def get_member(phone):
 
     results = []
     for m in members:
-        if not m.is_active or m.is_banned:
+        is_active = m.is_active if m.is_active is not None else True
+        is_banned = m.is_banned if m.is_banned is not None else False
+        if not is_active or is_banned:
             continue
         results.append({
             'id': m.id,
@@ -480,7 +487,6 @@ def get_member(phone):
             'role': m.role
         })
 
-    # FIX: This return was missing entirely in the original code.
     if not results:
         return jsonify({'error': 'No active, unbanned members found with that phone number.'}), 404
 
