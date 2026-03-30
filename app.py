@@ -460,6 +460,9 @@ def booking():
     return render_template('booking.html', courts=courts)
 
 
+# FIX: Added missing return statement so the route actually sends a response.
+# Previously the function built `results` but never returned it, causing Flask
+# to return None → 500 error → booking lookup appeared to do nothing.
 @app.route('/member/by-phone/<phone>')
 def get_member(phone):
     members = Member.query.filter_by(phone=phone).all()
@@ -476,6 +479,13 @@ def get_member(phone):
             'email': m.email,
             'role': m.role
         })
+
+    # FIX: This return was missing entirely in the original code.
+    if not results:
+        return jsonify({'error': 'No active, unbanned members found with that phone number.'}), 404
+
+    return jsonify({'members': results})
+
 
 @app.route('/dues/<int:member_id>')
 def get_member_dues(member_id):
@@ -820,9 +830,19 @@ def ban_member():
 # View ban log for a member (AJAX) - Added by Channing
 @app.route('/members/ban-log/<int:member_id>')
 def get_ban_log(member_id):
+    member = Member.query.get_or_404(member_id)
     logs = BanLog.query.filter_by(member_id=member_id)\
                        .order_by(BanLog.banned_at.desc()).all()
+
+    # FIX: Also return the ban_lift_date so the JS modal can display it.
+    # Previously the backend never sent this field, so the modal always
+    # showed "This is a permanent ban." even for temporary bans.
+    ban_lift_date_str = None
+    if member.ban_lift_date:
+        ban_lift_date_str = member.ban_lift_date.strftime('%m/%d/%Y')
+
     return jsonify({
+        'ban_lift_date': ban_lift_date_str,
         'logs': [{
             'ban_reason': log.ban_reason,
             'banned_by':  log.banned_by,
