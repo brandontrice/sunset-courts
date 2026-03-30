@@ -205,6 +205,23 @@ def seed_test_data():
             db.session.add(m)
         db.session.commit()
 
+
+    #Makes a guy who hasn't paid his dues in a long time
+    late_guy = Member.query.filter_by(first_name='Jimbo', last_name='Huggins', phone='1113926842',
+           email='JimboTheHuggins@yahoo.com').first()
+    if not late_guy:
+
+        potato=Member(first_name='Jimbo', last_name='Huggins', phone='1113926842',
+           email='JimboTheHuggins@yahoo.com', role='member',
+           is_active=True, is_banned=False)
+        db.session.add(potato)
+        db.session.commit()
+
+        beets=Dues(member_id=potato.id, amount="15", date_paid=date(2023,5,31), notes="Doesn't pay on time", status="unpaid")
+        db.session.add(beets)
+        db.session.commit()
+
+
     # Seeding test data for Dues table -Ian
     if Dues.query.count() == 0:
         test_dues = [

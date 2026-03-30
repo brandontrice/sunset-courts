@@ -320,6 +320,20 @@ def pay_dues():
         "year" : date.today().year
     })
 
+    Member.query.filter_by(
+        id=dues_member_id
+    ).update({
+        "is_banned": False
+    })
+
+    """ Commented out, for testing. -Ian
+    Dues.query.filter_by(
+        member_id=dues_member_id
+    ).update({
+        "date_paid":date.today() - timedelta(days=450)
+    })
+     """
+
     db.session.commit()
 
 
@@ -527,21 +541,23 @@ def add_booking():
         return jsonify({'error': 'Cannot book a date in the past.'}), 400
 
     # Checking is user is past due for paying Dues -Ian
-    # Had this working earliar but now it's broke again, if I have time I will fix it again -Ian
-    """row = Dues.query.filter_by(
+    row = Dues.query.filter_by(
         member_id=member_id,
-    )
+    ).first()
+
     if row:
         overdue = row.date_paid
-        difference = (date.today-overdue).days
+        difference = (date.today()-overdue).days
         if difference > 425:
             Member.query.filter_by(
-                member_id=member_id
+                id=member_id
             ).update({
                 "is_banned": True,
-                "ban_reason": "Member needs to pay fines"
+                "ban_reason": "Member needs to pay dues"
             })
-            db.session.commit()"""
+            db.session.commit()
+
+            return jsonify({'error': 'Member is past due for paying their dues.'}), 400
 
 
     # Restrict to current year only
