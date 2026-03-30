@@ -1313,3 +1313,41 @@ def export_bookings_per_member():
 
 if __name__ == '__main__':
     app.run(debug=True)
+    import sqlite3
+
+@app.route("/reports/monthly")
+def monthly_report():
+    if not reports_unlocked():
+        return redirect(url_for("reports_login"))
+
+    conn = sqlite3.connect("database.db")
+    cur = conn.cursor()
+
+    # total bookings
+    cur.execute("SELECT COUNT(*) FROM bookings")
+    total = cur.fetchone()[0]
+
+    # bookings per member
+    cur.execute("""
+        SELECT member_name, COUNT(*)
+        FROM bookings
+        GROUP BY member_name
+    """)
+    per_member = cur.fetchall()
+
+    # usage per court
+    cur.execute("""
+        SELECT court_number, COUNT(*)
+        FROM bookings
+        GROUP BY court_number
+    """)
+    per_court = cur.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "monthly.html",
+        total=total,
+        per_member=per_member,
+        per_court=per_court
+    )
