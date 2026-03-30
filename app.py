@@ -526,7 +526,8 @@ def add_booking():
         return jsonify({'error': 'Cannot book a date in the past.'}), 400
 
     # Checking is user is past due for paying Dues -Ian
-    row = Dues.query.filter_by(
+    # Had this working earliar but now it's broke again, if I have time I will fix it again -Ian
+    """row = Dues.query.filter_by(
         member_id=member_id,
     )
     if row:
@@ -539,7 +540,7 @@ def add_booking():
                 "is_banned": True,
                 "ban_reason": "Member needs to pay fines"
             })
-            db.session.commit()
+            db.session.commit()"""
 
 
     # Restrict to current year only
