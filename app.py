@@ -320,20 +320,6 @@ def pay_dues():
         "year" : date.today().year
     })
 
-    Member.query.filter_by(
-        id=dues_member_id
-    ).update({
-        "is_banned" : False
-    })
-
-    """ Commented out, for testing. -Ian
-    Dues.query.filter_by(
-        member_id=dues_member_id
-    ).update({
-        "date_paid":date.today() - timedelta(days=450)
-    })
-     """
-
     db.session.commit()
 
 
@@ -535,31 +521,25 @@ def add_booking():
     end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
     has_guest = bool(data.get('has_guest', False))
 
-
     # Reject past dates
     if booking_date < date.today():
         return jsonify({'error': 'Cannot book a date in the past.'}), 400
 
-    # Checking if user is past due for paying Dues -Ian
+    # Checking is user is past due for paying Dues -Ian
     row = Dues.query.filter_by(
-        member_id=member_id
-    ).first()
-
-    print(row)
-
+        member_id=member_id,
+    )
     if row:
         overdue = row.date_paid
-        difference = (date.today()-overdue).days
+        difference = (date.today-overdue).days
         if difference > 425:
             Member.query.filter_by(
-                id=member_id
+                member_id=member_id
             ).update({
                 "is_banned": True,
-                "ban_reason": "Member needs to pay dues"
+                "ban_reason": "Member needs to pay fines"
             })
             db.session.commit()
-
-            return jsonify({'error': 'Member is past due for paying their dues.'}), 400
 
 
     # Restrict to current year only
@@ -720,7 +700,7 @@ def add_member():
         phone       = sanitize_phone(request.form.get('phone', ''))
         email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
-        family_name = last_name
+        family_name = request.form.get('family_name', '').strip() or None
 
         # Parse join date
         join_date = datetime.strptime(join_date_str, '%Y-%m-%d') if join_date_str else datetime.utcnow()
@@ -765,7 +745,7 @@ def edit_member():
         phone       = sanitize_phone(request.form.get('phone', ''))
         email       = request.form.get('email', '').strip()
         join_date_str = request.form.get('join_date', '')
-        family_name = last_name
+        family_name = request.form.get('family_name', '').strip() or None
 
         # Check phone uniqueness (allow same member to keep their number)
         existing = Member.query.filter_by(phone=phone).first()
@@ -942,6 +922,186 @@ def reactivate_member(member_id):
     except Exception:
         db.session.rollback()
         return jsonify({'error': 'Something went wrong'}), 500
+
+
+# ── Reports ───────────────────────────────────────────────────────────────────
+
+@app.route('/reports')
+def reports():
+    current_year  = date.today().year
+    current_month = date.today().month
+    return render_template('reports.html',
+                           current_year=current_year,
+                           current_month=current_month)
+
+
+# US-30-122 — Monthly total bookings for a selected month
+@app.route('/reports/monthly-total')
+def report_monthly_total():
+    year  = int(request.args.get('year',  date.today().year))
+    month = int(request.args.get('month', date.today().month))
+
+    bookings = Booking.query.filter(
+        db.extract('year',  Booking.date) == year,
+        db.extract('month', Booking.date) == month,
+        Booking.is_cancelled == False
+    ).count()
+
+    import calendar
+    month_name = calendar.month_name[month]
+
+    return jsonify({
+        'year':       year,
+        'month':      month,
+        'month_name': month_name,
+        'total':      bookings
+    })
+
+
+# US-30-128 — Full-year total bookings broken down by month
+@app.route('/reports/yearly-total')
+def report_yearly_total():
+    year = int(request.args.get('year', date.today().year))
+    import calendar
+
+    months = []
+    for m in range(1, 13):
+        count = Booking.query.filter(
+            db.extract('year',  Booking.date) == year,
+            db.extract('month', Booking.date) == m,
+            Booking.is_cancelled == False
+        ).count()
+        months.append({
+            'month':      m,
+            'month_name': calendar.month_abbr[m],
+            'total':      count
+        })
+
+    yearly_total = sum(r['total'] for r in months)
+
+    return jsonify({
+        'year':         year,
+        'months':       months,
+        'yearly_total': yearly_total
+    })
+
+
+# US-30-126 — Busiest hours of the day (across all non-cancelled bookings for a given year)
+@app.route('/reports/busiest-hours')
+def report_busiest_hours():
+    year = int(request.args.get('year', date.today().year))
+
+    bookings = Booking.query.filter(
+        db.extract('year', Booking.date) == year,
+        Booking.is_cancelled == False
+    ).all()
+
+    # Count how many bookings overlap each half-hour slot 06:00–21:30
+    slot_counts = {}
+    hour = 6
+    minute = 0
+    while hour < 22:
+        slot_counts[f'{hour:02d}:{minute:02d}'] = 0
+        minute += 30
+        if minute == 60:
+            minute = 0
+            hour += 1
+
+    for b in bookings:
+        start_total = b.start_time.hour * 60 + b.start_time.minute
+        end_total   = b.end_time.hour   * 60 + b.end_time.minute
+        cur = start_total
+        while cur < end_total:
+            h = cur // 60
+            m = cur % 60
+            key = f'{h:02d}:{m:02d}'
+            if key in slot_counts:
+                slot_counts[key] += 1
+            cur += 30
+
+    # Collapse half-hours into full hours for a cleaner chart
+    hour_counts = {}
+    for slot, count in slot_counts.items():
+        h = slot.split(':')[0]
+        hour_counts[h] = hour_counts.get(h, 0) + count
+
+    hours = []
+    for h_str, total in sorted(hour_counts.items()):
+        h_int = int(h_str)
+        label = f'{h_int % 12 or 12}{"am" if h_int < 12 else "pm"}'
+        hours.append({'hour': h_str, 'label': label, 'total': total})
+
+    peak = max(hours, key=lambda x: x['total']) if hours else None
+
+    return jsonify({
+        'year':  year,
+        'hours': hours,
+        'peak':  peak
+    })
+
+
+# US-30-124 — Monthly bookings per court for a selected month
+@app.route('/reports/bookings-per-court')
+def report_bookings_per_court():
+    year  = int(request.args.get('year',  date.today().year))
+    month = int(request.args.get('month', date.today().month))
+    import calendar
+
+    courts = Court.query.order_by(Court.court_number).all()
+    results = []
+    for c in courts:
+        count = Booking.query.filter(
+            Booking.court_id    == c.id,
+            db.extract('year',  Booking.date) == year,
+            db.extract('month', Booking.date) == month,
+            Booking.is_cancelled == False
+        ).count()
+        results.append({
+            'court_id':     c.id,
+            'court_number': c.court_number,
+            'total':        count
+        })
+
+    return jsonify({
+        'year':       year,
+        'month':      month,
+        'month_name': calendar.month_name[month],
+        'courts':     results
+    })
+
+
+# US-30-123 — Monthly bookings per member for a selected month
+@app.route('/reports/bookings-per-member')
+def report_bookings_per_member():
+    year  = int(request.args.get('year',  date.today().year))
+    month = int(request.args.get('month', date.today().month))
+    import calendar
+
+    rows = (
+        db.session.query(Member, db.func.count(Booking.id).label('total'))
+        .join(Booking, Booking.member_id == Member.id)
+        .filter(
+            db.extract('year',  Booking.date) == year,
+            db.extract('month', Booking.date) == month,
+            Booking.is_cancelled == False
+        )
+        .group_by(Member.id)
+        .order_by(db.desc('total'))
+        .all()
+    )
+
+    results = [{
+        'member_id':   m.id,
+        'name':        f'{m.first_name} {m.last_name}',
+        'total':       total
+    } for m, total in rows]
+
+    return jsonify({
+        'year':       year,
+        'month':      month,
+        'month_name': calendar.month_name[month],
+        'members':    results
+    })
 
 
 if __name__ == '__main__':
