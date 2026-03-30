@@ -289,6 +289,42 @@ def calendar():
                            block_map=block_map,
                            blocked_cells=blocked_cells)
 
+#Renders the Dues page -Ian
+@app.route('/dues')
+def dues():
+    return render_template('dues.html')
+
+
+# Pays dues and sets the date they were paid -Ian
+@app.route('/pay_dues', methods=['POST'])
+def pay_dues():
+    if request.method=='POST':
+
+        amount_paid = float(request.form.get('amountPaid'))
+        notes = request.form.get('notes')
+        dues_member_id = request.form.get('resolvedMemberId')
+
+
+    row = Dues.query.filter_by(
+        member_id=dues_member_id
+    )
+    print (row)
+
+    Dues.query.filter_by(
+        member_id=dues_member_id
+    ).update({
+        "amount" :amount_paid,
+        "notes" :notes,
+        "date_paid" :date.today(),
+        "status" : "paid",
+        "year" : date.today().year
+    })
+
+    db.session.commit()
+
+
+    return "200"
+
 
 @app.route('/blocks/check', methods=['POST'])
 def check_block_conflicts():
@@ -441,11 +477,22 @@ def get_member(phone):
             'role': m.role
         })
 
-    if not results:
-        return jsonify({'error': 'Member found but not eligible to book (inactive or banned).'}), 404
+@app.route('/dues/<int:member_id>')
+def get_member_dues(member_id):
+    member = Member.query.get(member_id)
+    get_dues = Dues.query.get(member_id)
 
-    return jsonify({'members': results})
-
+    if not member:
+        return jsonify({'error': 'Member not found'}), 404
+    return jsonify({
+        'id': get_dues.member_id,
+        'name': f'{member.first_name} {member.last_name}',
+        'email': member.email,
+        'amount': get_dues.amount,
+        'date_paid': get_dues.date_paid.strftime("%Y-%m-%d"),
+        'notes': get_dues.notes,
+        'status': get_dues.status
+    })
 
 @app.route('/bookings/add', methods=['POST'])
 def add_booking():
@@ -461,6 +508,23 @@ def add_booking():
     # Reject past dates
     if booking_date < date.today():
         return jsonify({'error': 'Cannot book a date in the past.'}), 400
+
+    # Checking is user is past due for paying Dues -Ian
+    row = Dues.query.filter_by(
+        member_id=member_id,
+    )
+    if row:
+        overdue = row.date_paid
+        difference = (date.today-overdue).days
+        if difference > 425:
+            Member.query.filter_by(
+                member_id=member_id
+            ).update({
+                "is_banned": True,
+                "ban_reason": "Member needs to pay fines"
+            })
+            db.session.commit()
+
 
     # Restrict to current year only
     current_year = date.today().year
@@ -740,7 +804,7 @@ def ban_member():
         )
         db.session.add(log)
         db.session.commit()
-        
+
         if member.ban_lift_date:
             flash(f'{member.first_name} {member.last_name} has been banned until {member.ban_lift_date.strftime("%m/%d/%Y")}.', 'warning')
         else:

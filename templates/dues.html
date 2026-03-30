@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Dues Management</h2>
+
+<label>Search by Member ID:</label>
+<input type="text" id="memberId">
+<button onclick="lookupMember()">Lookup</button>
+
+<div id="memberInfo" style="display:none;">
+  <h3>Member Info</h3>
+  <p>Member ID: <span id="id"></span></p>
+  <p>Name: <span id="name"></span></p>
+  <p>Email: <span id="email"></span></p>
+  <p>Amount of dues: <span id="amount"></span></p>
+  <p>Date last paid: <span id="date_paid"></span></p>
+  <p>Notes: <span id="notes"></span></p>
+  <p>Status of member: <span id="status"></span></p>
+
+  <h3>Dues Payment</h3>
+  <label>Amount paid</label>
+  <input type="text" id="amountPaid">
+  <button onclick="payDues()">Update</button>
+  <label>Notes</label>
+  <input type="text" id="notes_text">
+
+
+</div>
+
+<script>
+  let resolvedMemberId = null;
+  const formatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    trailingZeroDisplay: 'stripIfInteger'
+
+  });
+
+  async function lookupMember() {
+    const id = document.getElementById('memberId').value.trim();
+    if (!id) return;
+
+    console.log(id);
+
+    const res  = await fetch(`/dues/${id}`);
+    const data = await res.json();
+
+    if (data.error) {
+      document.getElementById('memberInfo').style.display = 'none';
+      alert(data.error);
+      return;
+    }
+
+    resolvedMemberId = data.id;
+    document.getElementById('id').textContent  = resolvedMemberId;
+    document.getElementById('name').textContent  = data.name;
+    document.getElementById('email').textContent = data.email || 'N/A'
+    document.getElementById('amount').textContent  = formatter.format(data.amount);
+    document.getElementById('date_paid').textContent  = data.date_paid;
+    document.getElementById('notes').textContent  = data.notes;
+    document.getElementById('notes_text').value  = data.notes;
+    document.getElementById('status').textContent  = data.status;
+    document.getElementById('memberInfo').style.display = 'block';
+  }
+
+  async function payDues() {
+    const amountPaid = document.getElementById('amountPaid').value.trim();
+    const notes = document.getElementById('notes_text').value.trim();
+
+    fetch('pay_dues', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: `notes=${encodeURIComponent(notes)}&amountPaid=${encodeURIComponent(amountPaid)}&resolvedMemberId=${encodeURIComponent(resolvedMemberId)}`})
+
+    
+
+  }
+
+</script>
+
+
+{% endblock %}

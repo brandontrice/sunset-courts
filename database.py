@@ -50,7 +50,7 @@ class Dues(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    date_paid = db.Column(db.DateTime)
+    date_paid = db.Column(db.Date)
     notes = db.Column(db.String(200))
     status = db.Column(db.String(20), default='unpaid')
     year = db.Column(db.Integer, default=lambda: date.today().year)
@@ -175,9 +175,7 @@ def seed_courts():
 def seed_test_data():
     from datetime import date, time
 
-    today = date.today()
-
-    # Seed members only once — never wiped on restart
+    # Seed members only once
     if Member.query.count() == 0:
         test_members = [
             Member(first_name='John', last_name='Smith', phone='5401111111',
@@ -190,26 +188,31 @@ def seed_test_data():
                    email='sarah@email.com', role='volunteer'),
             Member(first_name='Mike', last_name='Brown', phone='5405555555',
                    email='mike@email.com', role='member'),
-            # Duplicate phone — used to test multi-match member selection on booking
-            Member(first_name='Carol', last_name='Smith', phone='5401111111',
-                   email='carol@email.com', role='member'),
         ]
         for m in test_members:
             db.session.add(m)
         db.session.commit()
 
-    # Only reseed today's bookings if none exist for today yet.
-    # This means:
-    #   - Restarting the app mid-day preserves all bookings made so far today.
-    #   - On the first start of a new day, today has no bookings so the default
-    #     set is inserted fresh (yesterday's bookings stay in history untouched).
-    existing_today = Booking.query.filter_by(date=today).first()
-    if existing_today:
-        # Bookings already exist for today — don't touch anything.
-        return
+    # Seeding test data for Dues table -Ian
+    if Dues.query.count() == 0:
+        test_dues = [
+            Dues(id="1", member_id="1", amount="30", date_paid=date(2026,6,29), notes="What a stupid name", status="paid" ),
+            Dues(id="2", member_id="2", amount="20", date_paid=date(2025,4,17), notes="Likes to smell paint", status="paid"),
+            Dues(id="3", member_id="3", amount="20", date_paid=date(2024,11,5), notes="Can't park worth a damn", status="unpaid"),
+            Dues(id="4", member_id="4", amount="20", date_paid=date(2025,1,15), notes="Father was a hamster", status="unpaid"),
+            Dues(id="5", member_id="5", amount="20", date_paid=date(2026,2,9), notes="What a stupid name", status="paid")
+        ]
+        for m in test_dues:
+            db.session.add(m)
+        db.session.commit()
 
-    # First start of the day: seed default bookings for today only.
-    # Previous days' bookings are left in the database as history.
+
+    # Always clear and re-seed bookings so dates stay current
+    Guest.query.delete()
+    Booking.query.delete()
+    db.session.commit()
+
+    today = date.today()
     test_bookings = [
         Booking(court_id=1, member_id=1, date=today,
                 start_time=time(9, 0), end_time=time(10, 0), is_cancelled=False),
