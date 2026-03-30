@@ -50,6 +50,25 @@
     font-size: 14px;
   }
 
+  /* ── Export button ───────────────────────────────────────────── */
+  .btn-export {
+    padding: 7px 14px;
+    font-size: 13px;
+    background: #006600;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    margin-left: auto;
+  }
+  .btn-export:hover { background: #005200; }
+  .btn-export:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+  }
+
   /* ── Stat highlight ──────────────────────────────────────────── */
   .stat-highlight {
     display: flex;
@@ -82,7 +101,7 @@
     align-items: flex-end;
     gap: 6px;
     height: 160px;
-    padding-bottom: 28px; /* space for labels */
+    padding-bottom: 28px;
     position: relative;
     min-width: 0;
   }
@@ -104,9 +123,7 @@
     position: relative;
     min-height: 2px;
   }
-  .bar-col .bar:hover {
-    background: #0055aa;
-  }
+  .bar-col .bar:hover { background: #0055aa; }
   .bar-col .bar-val {
     position: absolute;
     top: -20px;
@@ -126,17 +143,11 @@
     color: #444;
     white-space: nowrap;
   }
-  /* highlight the tallest bar */
-  .bar-col.peak .bar {
-    background: #cc6600;
-  }
+  .bar-col.peak .bar { background: #cc6600; }
   .bar-col.peak .bar-val,
-  .bar-col.peak .bar-lbl {
-    color: #cc6600;
-    font-weight: 700;
-  }
+  .bar-col.peak .bar-lbl { color: #cc6600; font-weight: 700; }
 
-  /* ── Table style for member/court lists ──────────────────────── */
+  /* ── Table style ─────────────────────────────────────────────── */
   .report-table {
     width: 100%;
     border-collapse: collapse;
@@ -220,6 +231,10 @@
       <input type="number" id="mt-year" value="{{ current_year }}"
              min="2020" max="2099" style="width:80px;">
       <button class="btn" onclick="loadMonthlyTotal()">Run</button>
+      <button class="btn-export" id="mt-export" disabled
+              onclick="exportReport('monthly-total', {month: 'mt-month', year: 'mt-year'})">
+        ⬇ Export CSV
+      </button>
     </div>
 
     <div id="mt-result">
@@ -240,6 +255,10 @@
       <input type="number" id="yr-year" value="{{ current_year }}"
              min="2020" max="2099" style="width:80px;">
       <button class="btn" onclick="loadYearlyTotal()">Run</button>
+      <button class="btn-export" id="yr-export" disabled
+              onclick="exportReport('yearly-total', {year: 'yr-year'})">
+        ⬇ Export CSV
+      </button>
     </div>
 
     <div id="yr-result">
@@ -260,6 +279,10 @@
       <input type="number" id="bh-year" value="{{ current_year }}"
              min="2020" max="2099" style="width:80px;">
       <button class="btn" onclick="loadBusiestHours()">Run</button>
+      <button class="btn-export" id="bh-export" disabled
+              onclick="exportReport('busiest-hours', {year: 'bh-year'})">
+        ⬇ Export CSV
+      </button>
     </div>
 
     <div id="bh-result">
@@ -289,6 +312,10 @@
       <input type="number" id="bc-year" value="{{ current_year }}"
              min="2020" max="2099" style="width:80px;">
       <button class="btn" onclick="loadBookingsPerCourt()">Run</button>
+      <button class="btn-export" id="bc-export" disabled
+              onclick="exportReport('bookings-per-court', {month: 'bc-month', year: 'bc-year'})">
+        ⬇ Export CSV
+      </button>
     </div>
 
     <div id="bc-result">
@@ -318,6 +345,10 @@
       <input type="number" id="bm-year" value="{{ current_year }}"
              min="2020" max="2099" style="width:80px;">
       <button class="btn" onclick="loadBookingsPerMember()">Run</button>
+      <button class="btn-export" id="bm-export" disabled
+              onclick="exportReport('bookings-per-member', {month: 'bm-month', year: 'bm-year'})">
+        ⬇ Export CSV
+      </button>
     </div>
 
     <div id="bm-result">
@@ -341,6 +372,27 @@
   function setError(elId, msg) {
     document.getElementById(elId).innerHTML =
       `<p class="report-placeholder" style="color:#cc0000;">${msg}</p>`;
+  }
+
+  /**
+   * Enables the export button for a card after a successful Run.
+   */
+  function enableExport(exportBtnId) {
+    const btn = document.getElementById(exportBtnId);
+    if (btn) btn.disabled = false;
+  }
+
+  /**
+   * Builds the export URL from current filter values and navigates to it,
+   * which triggers the browser's file download.
+   * reportSlug: matches the Flask route slug, e.g. 'monthly-total'
+   * params: object mapping param name → element id, e.g. {month: 'mt-month', year: 'mt-year'}
+   */
+  function exportReport(reportSlug, params) {
+    const qs = Object.entries(params)
+      .map(([key, elId]) => `${key}=${document.getElementById(elId).value}`)
+      .join('&');
+    window.location.href = `/reports/${reportSlug}/export?${qs}`;
   }
 
   /**
@@ -420,6 +472,8 @@
           <span class="stat-label">bookings</span>
         </div>
         <div class="stat-sub">${data.month_name} ${data.year}</div>`;
+
+      enableExport('mt-export');
     } catch(e) {
       setError('mt-result', 'Failed to load report. Please try again.');
     }
@@ -463,6 +517,7 @@
         wrap.appendChild(note);
       }
 
+      enableExport('yr-export');
     } catch(e) {
       setError('yr-result', 'Failed to load report. Please try again.');
     }
@@ -503,6 +558,7 @@
       wrap.appendChild(chartDiv);
       renderBarChart('bh-chart', items, peakIdx);
 
+      enableExport('bh-export');
     } catch(e) {
       setError('bh-result', 'Failed to load report. Please try again.');
     }
@@ -531,7 +587,7 @@
          <div id="bc-table"></div>`;
 
       renderRankedTable('bc-table', rows, 'Court');
-
+      enableExport('bc-export');
     } catch(e) {
       setError('bc-result', 'Failed to load report. Please try again.');
     }
@@ -560,7 +616,7 @@
          <div id="bm-table"></div>`;
 
       renderRankedTable('bm-table', rows, 'Member');
-
+      enableExport('bm-export');
     } catch(e) {
       setError('bm-result', 'Failed to load report. Please try again.');
     }
