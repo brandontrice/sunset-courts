@@ -175,19 +175,31 @@ def seed_courts():
 def seed_test_data():
     from datetime import date, time
 
-    # Seed members only once
+    # Seed members only once.
+    # FIX: is_active=True and is_banned=False are now set explicitly on every
+    # seed member. SQLAlchemy column defaults only fire at INSERT time when the
+    # value is omitted — if the database file already existed from an earlier
+    # run before these defaults were defined, those columns stored NULL.
+    # In Python, `not None` evaluates to True, so NULL is_active caused the
+    # member to be treated as inactive and skipped in the booking lookup.
+    # Explicit values here prevent that on any fresh seed going forward.
     if Member.query.count() == 0:
         test_members = [
             Member(first_name='John', last_name='Smith', phone='5401111111',
-                   email='john@email.com', role='member'),
+                   email='john@email.com', role='member',
+                   is_active=True, is_banned=False),
             Member(first_name='Jane', last_name='Doe', phone='5402222222',
-                   email='jane@email.com', role='member'),
+                   email='jane@email.com', role='member',
+                   is_active=True, is_banned=False),
             Member(first_name='Bob', last_name='Johnson', phone='5403333333',
-                   email='bob@email.com', role='member'),
+                   email='bob@email.com', role='member',
+                   is_active=True, is_banned=False),
             Member(first_name='Sarah', last_name='Williams', phone='5404444444',
-                   email='sarah@email.com', role='volunteer'),
+                   email='sarah@email.com', role='volunteer',
+                   is_active=True, is_banned=False),
             Member(first_name='Mike', last_name='Brown', phone='5405555555',
-                   email='mike@email.com', role='member'),
+                   email='mike@email.com', role='member',
+                   is_active=True, is_banned=False),
         ]
         for m in test_members:
             db.session.add(m)
