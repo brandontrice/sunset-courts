@@ -1104,5 +1104,211 @@ def report_bookings_per_member():
     })
 
 
+# ── Report CSV Exports ────────────────────────────────────────────────────────
+
+# US-30-122 — Export monthly total bookings as CSV
+@app.route('/reports/monthly-total/export')
+def export_monthly_total():
+    import calendar
+    import io
+    year  = int(request.args.get('year',  date.today().year))
+    month = int(request.args.get('month', date.today().month))
+    month_name = calendar.month_name[month]
+
+    total = Booking.query.filter(
+        db.extract('year',  Booking.date) == year,
+        db.extract('month', Booking.date) == month,
+        Booking.is_cancelled == False
+    ).count()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Report', 'Monthly Total Bookings'])
+    writer.writerow(['Period', f'{month_name} {year}'])
+    writer.writerow([])
+    writer.writerow(['Total Bookings'])
+    writer.writerow([total])
+
+    output.seek(0)
+    filename = f'monthly_total_{year}_{month:02d}.csv'
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# US-30-128 — Export full-year bookings as CSV
+@app.route('/reports/yearly-total/export')
+def export_yearly_total():
+    import calendar
+    import io
+    year = int(request.args.get('year', date.today().year))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Report', 'Full-Year Bookings'])
+    writer.writerow(['Year', year])
+    writer.writerow([])
+    writer.writerow(['Month', 'Bookings'])
+
+    yearly_total = 0
+    for m in range(1, 13):
+        count = Booking.query.filter(
+            db.extract('year',  Booking.date) == year,
+            db.extract('month', Booking.date) == m,
+            Booking.is_cancelled == False
+        ).count()
+        writer.writerow([calendar.month_name[m], count])
+        yearly_total += count
+
+    writer.writerow([])
+    writer.writerow(['Year Total', yearly_total])
+
+    output.seek(0)
+    filename = f'yearly_total_{year}.csv'
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# US-30-126 — Export busiest hours as CSV
+@app.route('/reports/busiest-hours/export')
+def export_busiest_hours():
+    import io
+    year = int(request.args.get('year', date.today().year))
+
+    bookings = Booking.query.filter(
+        db.extract('year', Booking.date) == year,
+        Booking.is_cancelled == False
+    ).all()
+
+    slot_counts = {}
+    hour = 6
+    minute = 0
+    while hour < 22:
+        slot_counts[f'{hour:02d}:{minute:02d}'] = 0
+        minute += 30
+        if minute == 60:
+            minute = 0
+            hour += 1
+
+    for b in bookings:
+        start_total = b.start_time.hour * 60 + b.start_time.minute
+        end_total   = b.end_time.hour   * 60 + b.end_time.minute
+        cur = start_total
+        while cur < end_total:
+            h = cur // 60
+            m = cur % 60
+            key = f'{h:02d}:{m:02d}'
+            if key in slot_counts:
+                slot_counts[key] += 1
+            cur += 30
+
+    hour_counts = {}
+    for slot, count in slot_counts.items():
+        h = slot.split(':')[0]
+        hour_counts[h] = hour_counts.get(h, 0) + count
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Report', 'Busiest Hours of the Day'])
+    writer.writerow(['Year', year])
+    writer.writerow([])
+    writer.writerow(['Hour', 'Booking Slots'])
+
+    for h_str, total in sorted(hour_counts.items()):
+        h_int = int(h_str)
+        label = f'{h_int % 12 or 12} {"AM" if h_int < 12 else "PM"}'
+        writer.writerow([label, total])
+
+    output.seek(0)
+    filename = f'busiest_hours_{year}.csv'
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# US-30-124 — Export monthly bookings per court as CSV
+@app.route('/reports/bookings-per-court/export')
+def export_bookings_per_court():
+    import calendar
+    import io
+    year  = int(request.args.get('year',  date.today().year))
+    month = int(request.args.get('month', date.today().month))
+    month_name = calendar.month_name[month]
+
+    courts = Court.query.order_by(Court.court_number).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Report', 'Bookings Per Court'])
+    writer.writerow(['Period', f'{month_name} {year}'])
+    writer.writerow([])
+    writer.writerow(['Court', 'Bookings'])
+
+    for c in courts:
+        count = Booking.query.filter(
+            Booking.court_id == c.id,
+            db.extract('year',  Booking.date) == year,
+            db.extract('month', Booking.date) == month,
+            Booking.is_cancelled == False
+        ).count()
+        writer.writerow([f'Court {c.court_number}', count])
+
+    output.seek(0)
+    filename = f'bookings_per_court_{year}_{month:02d}.csv'
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# US-30-123 — Export monthly bookings per member as CSV
+@app.route('/reports/bookings-per-member/export')
+def export_bookings_per_member():
+    import calendar
+    import io
+    year  = int(request.args.get('year',  date.today().year))
+    month = int(request.args.get('month', date.today().month))
+    month_name = calendar.month_name[month]
+
+    rows = (
+        db.session.query(Member, db.func.count(Booking.id).label('total'))
+        .join(Booking, Booking.member_id == Member.id)
+        .filter(
+            db.extract('year',  Booking.date) == year,
+            db.extract('month', Booking.date) == month,
+            Booking.is_cancelled == False
+        )
+        .group_by(Member.id)
+        .order_by(db.desc('total'))
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Report', 'Bookings Per Member'])
+    writer.writerow(['Period', f'{month_name} {year}'])
+    writer.writerow([])
+    writer.writerow(['Member', 'Bookings'])
+
+    for m, total in rows:
+        writer.writerow([f'{m.first_name} {m.last_name}', total])
+
+    output.seek(0)
+    filename = f'bookings_per_member_{year}_{month:02d}.csv'
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
 if __name__ == '__main__':
     app.run(debug=True)
