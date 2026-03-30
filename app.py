@@ -320,6 +320,20 @@ def pay_dues():
         "year" : date.today().year
     })
 
+    Member.query.filter_by(
+        id=dues_member_id
+    ).update({
+        "is_banned" : False
+    })
+
+    """ Commented out, for testing. -Ian
+    Dues.query.filter_by(
+        member_id=dues_member_id
+    ).update({
+        "date_paid":date.today() - timedelta(days=450)
+    })
+     """
+
     db.session.commit()
 
 
@@ -521,25 +535,31 @@ def add_booking():
     end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
     has_guest = bool(data.get('has_guest', False))
 
+
     # Reject past dates
     if booking_date < date.today():
         return jsonify({'error': 'Cannot book a date in the past.'}), 400
 
-    # Checking is user is past due for paying Dues -Ian
+    # Checking if user is past due for paying Dues -Ian
     row = Dues.query.filter_by(
-        member_id=member_id,
-    )
+        member_id=member_id
+    ).first()
+
+    print(row)
+
     if row:
         overdue = row.date_paid
-        difference = (date.today-overdue).days
+        difference = (date.today()-overdue).days
         if difference > 425:
             Member.query.filter_by(
-                member_id=member_id
+                id=member_id
             ).update({
                 "is_banned": True,
-                "ban_reason": "Member needs to pay fines"
+                "ban_reason": "Member needs to pay dues"
             })
             db.session.commit()
+
+            return jsonify({'error': 'Member is past due for paying their dues.'}), 400
 
 
     # Restrict to current year only
@@ -925,4 +945,4 @@ def reactivate_member(member_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
