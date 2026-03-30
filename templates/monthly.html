@@ -1,0 +1,21 @@
+<h2>Monthly Report</h2>
+
+<p>Total Bookings: {{ total }}</p>
+
+<h3>Bookings per Member</h3>
+<table border="1">
+<tr><th>Member</th><th>Bookings</th></tr>
+{% for row in per_member %}
+<tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+{% endfor %}
+</table>
+
+<h3>Usage per Court</h3>
+<table border="1">
+<tr><th>Court</th><th>Usage</th></tr>
+{% for row in per_court %}
+<tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+{% endfor %}
+</table>
+
+<a href="/reports/export">Export CSV</a>
